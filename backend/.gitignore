@@ -1,0 +1,6 @@
+__pycache__/
+.pytest_cache/
+.venv/
+.test-deps/
+models/*.pt
+models/*.onnx

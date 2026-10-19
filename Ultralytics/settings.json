@@ -1,0 +1,19 @@
+{
+  "settings_version": "0.0.8",
+  "datasets_dir": "D:\\Downloads\\App_Orange_Box\\datasets",
+  "weights_dir": "weights",
+  "runs_dir": "runs",
+  "uuid": "469cf09fc309ae103ab29817580c6f81e38cd2bee666510da58ffbfaf8b9e81b",
+  "sync": true,
+  "api_key": "",
+  "openai_api_key": "",
+  "clearml": true,
+  "comet": true,
+  "dvc": true,
+  "mlflow": true,
+  "raytune": true,
+  "tensorboard": false,
+  "wandb": false,
+  "vscode_msg": true,
+  "openvino_msg": true
+}

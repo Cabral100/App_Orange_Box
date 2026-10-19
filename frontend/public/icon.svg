@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="CYF">
+  <rect width="512" height="512" rx="132" fill="#176a40"/>
+  <path d="M0 406 406 0h106v106L106 512H0Z" fill="#d76725" opacity=".2"/>
+  <text x="256" y="302" fill="#fff" font-family="Inter, Arial, sans-serif" font-size="164" font-weight="800" letter-spacing="-10" text-anchor="middle">CYF</text>
+</svg>
