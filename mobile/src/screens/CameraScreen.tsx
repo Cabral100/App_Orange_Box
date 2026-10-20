@@ -1,0 +1,224 @@
+import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
+import { CameraView, useCameraPermissions } from "expo-camera";
+import * as ImagePicker from "expo-image-picker";
+import * as Location from "expo-location";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ActivityIndicator, Alert, Dimensions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { CONFIRMED_THRESHOLD } from "../analytics";
+import { findPlot } from "../geo";
+import { persistInspectionImage } from "../storage";
+import type { Coordinates, InferenceResult, InspectionRecord, PhotoAnalyzer, Plot } from "../types";
+import { colors, fonts, radii, shadow } from "../theme";
+
+const SCAN_INTERVAL_MS = 3500;
+const screenWidth = Dimensions.get("window").width;
+const scanSize = Math.min(screenWidth - 64, 350);
+
+type Props = {
+  plots: Plot[];
+  active: boolean;
+  onBack: () => void;
+  onCaptured: (record: InspectionRecord) => Promise<void>;
+  analyzer: PhotoAnalyzer;
+  prepareAnalyzer: () => Promise<unknown>;
+  demoMode?: boolean;
+};
+
+function id() {
+  return globalThis.crypto?.randomUUID?.() || `inspection-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function fromPosition(position: Location.LocationObject | null): Coordinates | null {
+  if (!position) return null;
+  return { latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy: position.coords.accuracy, altitude: position.coords.altitude, source: "gps" };
+}
+
+function exifCoordinate(exif: Record<string, unknown> | null | undefined): Coordinates | null {
+  if (!exif) return null;
+  let latitude = Number(exif.GPSLatitude ?? exif.latitude);
+  let longitude = Number(exif.GPSLongitude ?? exif.longitude);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
+  if (String(exif.GPSLatitudeRef || "").toUpperCase() === "S") latitude = -Math.abs(latitude);
+  if (String(exif.GPSLongitudeRef || "").toUpperCase() === "W") longitude = -Math.abs(longitude);
+  return { latitude, longitude, accuracy: null, altitude: null, source: "exif" };
+}
+
+export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prepareAnalyzer, demoMode = false }: Props) {
+  const cameraRef = useRef<CameraView>(null);
+  const inFlightRef = useRef(false);
+  const armedRef = useRef(true);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [ready, setReady] = useState(false);
+  const [torch, setTorch] = useState(false);
+  const [location, setLocation] = useState<Coordinates | null>(null);
+  const [modelReady, setModelReady] = useState(false);
+  const [analysis, setAnalysis] = useState<InferenceResult | null>(null);
+  const [working, setWorking] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const [help, setHelp] = useState(false);
+  const [message, setMessage] = useState("Aponte para a superfície da laranja");
+
+  useEffect(() => {
+    prepareAnalyzer().then(() => setModelReady(true)).catch((error) => setMessage(error instanceof Error ? error.message : "Não foi possível abrir a análise offline."));
+  }, [prepareAnalyzer]);
+
+  useEffect(() => {
+    let subscription: Location.LocationSubscription | undefined;
+    Location.requestForegroundPermissionsAsync().then(async ({ granted }) => {
+      if (!granted) return;
+      const current = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High }).catch(() => null);
+      setLocation(fromPosition(current));
+      subscription = await Location.watchPositionAsync(
+        { accuracy: Location.Accuracy.High, distanceInterval: 2, timeInterval: 5000 },
+        (position) => setLocation(fromPosition(position)),
+      );
+    });
+    return () => subscription?.remove();
+  }, []);
+
+  const confidence = analysis?.detections[0]?.confidence || 0;
+  const confidencePercent = Math.round(confidence * 100);
+
+  const storeAnalysis = useCallback(async (preparedUri: string, result: InferenceResult, source: "camera" | "gallery", captureLocation: Coordinates | null) => {
+    const recordId = id();
+    const imageUri = await persistInspectionImage(preparedUri, recordId);
+    const confirmed = result.detections.filter((detection) => detection.confidence >= CONFIRMED_THRESHOLD);
+    const plot = findPlot(plots, captureLocation);
+    const record: InspectionRecord = {
+      id: recordId, capturedAt: new Date().toISOString(), imageUri, width: 640, height: 640,
+      detections: confirmed, topConfidence: result.detections[0]?.confidence || 0,
+      location: captureLocation, plotId: plot?.id || null, mapVisible: false, source, syncState: "local", demo: demoMode,
+    };
+    setSuccess(true);
+    await new Promise((resolve) => setTimeout(resolve, 850));
+    await onCaptured(record);
+    setSuccess(false);
+  }, [demoMode, onCaptured, plots]);
+
+  const analyzePhoto = useCallback(async (
+    photo: { uri: string; width: number; height: number },
+    options: { manual: boolean; source: "camera" | "gallery"; captureLocation: Coordinates | null },
+  ) => {
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
+    if (options.manual) setWorking(true);
+    try {
+      setMessage("Analisando no aparelho…");
+      const offline = await analyzer(photo.uri, photo.width, photo.height);
+      setAnalysis(offline.result);
+      const best = offline.result.detections[0]?.confidence || 0;
+      if (best < 0.8) armedRef.current = true;
+      if (options.manual || (best >= CONFIRMED_THRESHOLD && armedRef.current)) {
+        armedRef.current = false;
+        await storeAnalysis(offline.imageUri, offline.result, options.source, options.captureLocation);
+      } else {
+        setMessage(best > 0 ? "Possível sinal — aproxime e estabilize" : "Nenhum sinal neste quadro");
+      }
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Falha na análise offline.");
+    } finally {
+      inFlightRef.current = false;
+      setWorking(false);
+    }
+  }, [analyzer, storeAnalysis]);
+
+  const capture = useCallback(async (manual: boolean) => {
+    if (!cameraRef.current || !ready || !modelReady || inFlightRef.current) return;
+    const photo = await cameraRef.current.takePictureAsync({ quality: manual ? 0.9 : 0.55, skipProcessing: false });
+    if (photo) await analyzePhoto(photo, { manual, source: "camera", captureLocation: location });
+  }, [analyzePhoto, location, modelReady, ready]);
+
+  useEffect(() => {
+    if (demoMode || !active || !ready || !modelReady || success) return undefined;
+    const interval = setInterval(() => { capture(false).catch(() => undefined); }, SCAN_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [active, capture, demoMode, modelReady, ready, success]);
+
+  async function chooseFromGallery() {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        Alert.alert("Acesso às fotos necessário", "Permita o acesso à galeria nos Ajustes do iPhone para analisar uma imagem existente.");
+        return;
+      }
+      const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1, exif: true, allowsEditing: false, selectionLimit: 1 });
+      const asset = picked.canceled ? null : picked.assets[0];
+      if (!asset) return;
+      const captureLocation = exifCoordinate(asset.exif as Record<string, unknown> | null) || location;
+      await analyzePhoto({ uri: asset.uri, width: asset.width, height: asset.height }, { manual: true, source: "gallery", captureLocation });
+    } catch (error) {
+      Alert.alert("Galeria indisponível", error instanceof Error ? error.message : "Não foi possível abrir suas fotos.");
+    }
+  }
+
+  if (!permission) return <View style={styles.permission}><ActivityIndicator color={colors.green} /></View>;
+  if (!permission.granted) {
+    return <View style={styles.permission}><MaterialCommunityIcons name="camera-lock-outline" size={54} color={colors.green} /><Text style={styles.permissionTitle}>Permita o uso da câmera</Text><Text style={styles.permissionCopy}>As imagens ficam no aparelho e são usadas somente durante a inspeção.</Text><Pressable style={styles.permissionButton} onPress={requestPermission}><Text style={styles.permissionButtonText}>Permitir câmera</Text></Pressable></View>;
+  }
+
+  return (
+    <View style={styles.page}>
+      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" active={active} enableTorch={torch} autofocus="on" onCameraReady={() => setReady(true)} onMountError={(event) => setMessage(event.message)} />
+      <View style={styles.shade} pointerEvents="none" />
+
+      <View style={styles.topLeftActions}>
+        <CameraButton icon="chevron-left" label="Voltar ao histórico" onPress={onBack} />
+        <CameraButton icon="information-outline" label="Como funciona a câmera" onPress={() => setHelp(true)} />
+      </View>
+
+      <View style={styles.detectorPill} accessibilityLabel={`Confiança da análise ${confidencePercent}%`}>
+        <View style={styles.detectorHead}><Text style={styles.detectorText}>{confidence ? "Sinal" : "Buscando"}</Text><Text style={styles.detectorValue}>{confidencePercent}%</Text></View>
+        <View style={[styles.miniTrack, { width: 42 + confidence * 70 }]}><View style={[styles.miniFill, { width: `${Math.max(3, confidencePercent)}%` }]} /></View>
+      </View>
+
+      <View style={[styles.scanBox, { width: scanSize, height: scanSize }]} pointerEvents="none">
+        <View style={[styles.corner, styles.topLeft]} /><View style={[styles.corner, styles.topRight]} />
+        <View style={[styles.corner, styles.bottomLeft]} /><View style={[styles.corner, styles.bottomRight]} />
+        <View style={styles.focusCircle}><View style={styles.focusDot} /></View>
+        {(analysis?.detections || []).slice(0, 8).map((detection, index) => <View key={`${detection.bbox.x1}-${index}`} style={[styles.box, {
+          left: detection.bbox.x1 / 640 * scanSize, top: detection.bbox.y1 / 640 * scanSize,
+          width: (detection.bbox.x2 - detection.bbox.x1) / 640 * scanSize, height: (detection.bbox.y2 - detection.bbox.y1) / 640 * scanSize,
+        }]} />)}
+      </View>
+
+      <View style={styles.messagePill}><View style={[styles.liveDot, modelReady && styles.liveDotReady]} /><Text numberOfLines={1} style={styles.message}>{message}</Text>{demoMode ? <Text style={styles.demo}>DEMO</Text> : null}</View>
+      <View style={styles.controls}>
+        <Pressable accessibilityLabel="Abrir galeria" onPress={chooseFromGallery} style={({ pressed }) => [styles.sideControl, pressed && styles.pressed]}><MaterialCommunityIcons name="image-outline" size={28} color={colors.white} /><Text style={styles.controlLabel}>Galeria</Text></Pressable>
+        <Pressable disabled={working || !modelReady} onPress={() => capture(true)} accessibilityLabel="Capturar e analisar" style={({ pressed }) => [styles.shutterOuter, pressed && styles.pressed]}><View style={styles.shutterInner}>{working ? <ActivityIndicator color={colors.white} /> : null}</View></Pressable>
+        <Pressable accessibilityLabel={torch ? "Desligar flash" : "Ligar flash"} onPress={() => setTorch((value) => !value)} style={({ pressed }) => [styles.sideControl, torch && styles.sideControlActive, pressed && styles.pressed]}><MaterialCommunityIcons name={torch ? "flash" : "flash-off"} size={28} color={torch ? colors.orange : colors.white} /><Text style={styles.controlLabel}>Flash</Text></Pressable>
+      </View>
+
+      <Modal visible={help} transparent animationType="fade" onRequestClose={() => setHelp(false)}>
+        <View style={styles.modalShade}><View style={styles.helpCard}><View style={styles.helpHeader}><Text style={styles.helpTitle}>Como inspecionar</Text><Pressable accessibilityLabel="Fechar informações" onPress={() => setHelp(false)}><MaterialCommunityIcons name="close" size={26} color={colors.ink} /></Pressable></View>
+          <HelpRow icon="fruit-citrus" title="Aproxime a laranja" copy="Centralize a casca dentro das quatro marcas brancas." />
+          <HelpRow icon="motion-sensor" title="Aguarde o sinal" copy="A barra cresce conforme a confiança aumenta. Com 95% ou mais, a foto é salva." />
+          <HelpRow icon="map-marker-radius" title="Confirme o talhão" copy="Depois da foto, desenhe o limite ou informe a área em metros quadrados." />
+          <View style={styles.helpNote}><MaterialCommunityIcons name="cloud-off-outline" size={18} color={colors.green} /><Text style={styles.helpNoteText}>Câmera e registros funcionam offline. Nesta versão Expo Go, a detecção é demonstrativa.</Text></View>
+          <Pressable onPress={() => setHelp(false)} style={styles.helpButton}><Text style={styles.helpButtonText}>Entendi</Text></Pressable>
+        </View></View>
+      </Modal>
+
+      {success ? <View style={styles.success}><View style={styles.successCheck}><MaterialCommunityIcons name="check" size={74} color={colors.green} /></View><Text style={styles.successTitle}>Imagem capturada</Text><Text style={styles.successCopy}>Registro salvo neste aparelho</Text></View> : null}
+    </View>
+  );
+}
+
+function CameraButton({ icon, label, onPress }: { icon: keyof typeof MaterialCommunityIcons.glyphMap; label: string; onPress: () => void }) {
+  return <Pressable accessibilityLabel={label} onPress={onPress} style={({ pressed }) => [styles.cameraButton, pressed && styles.pressed]}><MaterialCommunityIcons name={icon} size={27} color={colors.white} /></Pressable>;
+}
+
+function HelpRow({ icon, title, copy }: { icon: keyof typeof MaterialCommunityIcons.glyphMap; title: string; copy: string }) {
+  return <View style={styles.helpRow}><View style={styles.helpIcon}><MaterialCommunityIcons name={icon} size={22} color={colors.green} /></View><View style={styles.helpCopyWrap}><Text style={styles.helpRowTitle}>{title}</Text><Text style={styles.helpRowCopy}>{copy}</Text></View></View>;
+}
+
+const styles = StyleSheet.create({
+  page: { flex: 1, backgroundColor: "#000" }, shade: { position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.09)" },
+  topLeftActions: { position: "absolute", top: 52, left: 16, flexDirection: "row", gap: 9 }, cameraButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,12,9,0.48)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)" },
+  detectorPill: { position: "absolute", top: 55, right: 16, minWidth: 128, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 17, backgroundColor: "rgba(8,12,9,0.55)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", alignItems: "flex-end" }, detectorHead: { width: "100%", flexDirection: "row", justifyContent: "space-between", gap: 10 }, detectorText: { color: "rgba(255,255,255,0.74)", fontFamily: fonts.medium, fontSize: 9 }, detectorValue: { color: colors.white, fontFamily: fonts.bold, fontSize: 11 }, miniTrack: { height: 4, maxWidth: 112, marginTop: 6, borderRadius: 3, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.25)" }, miniFill: { height: "100%", borderRadius: 3, backgroundColor: colors.orange },
+  scanBox: { position: "absolute", top: 168, alignSelf: "center" }, corner: { position: "absolute", width: 43, height: 43, borderColor: colors.white }, topLeft: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 16 }, topRight: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 16 }, bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 16 }, bottomRight: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 16 }, focusCircle: { position: "absolute", left: "50%", top: "50%", marginLeft: -27, marginTop: -27, width: 54, height: 54, borderRadius: 27, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.72)", alignItems: "center", justifyContent: "center" }, focusDot: { width: 21, height: 21, borderRadius: 11, borderWidth: 2, borderColor: colors.green }, box: { position: "absolute", borderWidth: 2, borderColor: colors.orange, borderRadius: 5, backgroundColor: "rgba(233,78,11,0.08)" },
+  messagePill: { position: "absolute", left: 27, right: 27, bottom: 143, minHeight: 39, borderRadius: 20, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(8,12,9,0.6)" }, liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.muted }, liveDotReady: { backgroundColor: "#53D57B" }, message: { flex: 1, color: colors.white, fontFamily: fonts.medium, fontSize: 10 }, demo: { color: colors.orange, fontFamily: fonts.bold, fontSize: 8, letterSpacing: 0.7 },
+  controls: { position: "absolute", left: 0, right: 0, bottom: 20, height: 112, paddingHorizontal: 33, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(4,7,5,0.32)" }, sideControl: { width: 65, height: 65, borderRadius: 33, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(14,18,15,0.62)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" }, sideControlActive: { borderColor: colors.orange }, controlLabel: { color: colors.white, fontFamily: fonts.medium, fontSize: 8, marginTop: 2 }, shutterOuter: { width: 86, height: 86, borderRadius: 43, borderWidth: 4, borderColor: colors.white, padding: 6, alignItems: "center", justifyContent: "center" }, shutterInner: { width: "100%", height: "100%", borderRadius: 37, backgroundColor: colors.orange, alignItems: "center", justifyContent: "center" }, pressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  permission: { flex: 1, padding: 34, alignItems: "center", justifyContent: "center", backgroundColor: colors.paper }, permissionTitle: { color: colors.ink, fontFamily: fonts.extraBold, fontSize: 23, textAlign: "center", marginTop: 20 }, permissionCopy: { color: colors.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: 10 }, permissionButton: { marginTop: 24, backgroundColor: colors.green, borderRadius: radii.pill, paddingHorizontal: 28, paddingVertical: 15 }, permissionButtonText: { color: colors.white, fontFamily: fonts.bold },
+  modalShade: { flex: 1, justifyContent: "flex-end", padding: 12, backgroundColor: "rgba(0,0,0,0.48)" }, helpCard: { borderRadius: 30, padding: 20, paddingBottom: 24, backgroundColor: colors.paper, ...shadow }, helpHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }, helpTitle: { color: colors.ink, fontFamily: fonts.black, fontSize: 25 }, helpRow: { flexDirection: "row", gap: 12, alignItems: "center", paddingVertical: 11 }, helpIcon: { width: 43, height: 43, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.greenSoft }, helpCopyWrap: { flex: 1 }, helpRowTitle: { color: colors.ink, fontFamily: fonts.bold, fontSize: 13 }, helpRowCopy: { color: colors.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, marginTop: 2 }, helpNote: { marginTop: 8, padding: 13, borderRadius: 15, backgroundColor: colors.greenSoft, flexDirection: "row", gap: 9 }, helpNoteText: { flex: 1, color: colors.greenDark, fontFamily: fonts.regular, fontSize: 10, lineHeight: 15 }, helpButton: { height: 54, borderRadius: radii.pill, marginTop: 16, backgroundColor: colors.green, alignItems: "center", justifyContent: "center" }, helpButtonText: { color: colors.white, fontFamily: fonts.bold, fontSize: 14 },
+  success: { position: "absolute", inset: 0, zIndex: 20, backgroundColor: colors.green, alignItems: "center", justifyContent: "center", padding: 28 }, successCheck: { width: 130, height: 130, borderRadius: 66, alignItems: "center", justifyContent: "center", backgroundColor: colors.white }, successTitle: { color: colors.white, fontFamily: fonts.black, fontSize: 30, textAlign: "center", marginTop: 27 }, successCopy: { color: "#D9EDE0", fontFamily: fonts.medium, fontSize: 14, marginTop: 9 },
+});
