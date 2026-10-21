@@ -1,0 +1,31 @@
+{
+  "type": "FeatureCollection",
+  "name": "talhoes_demo_cyf",
+  "crs": { "type": "name", "properties": { "name": "EPSG:4326" } },
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Talhão Pera Norte", "cultivar": "Pera Rio", "area_ha": 18.4 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-47.4082, -22.5584], [-47.4031, -22.5589], [-47.4027, -22.5621], [-47.4077, -22.5626], [-47.4082, -22.5584]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Talhão Valência Central", "cultivar": "Valência", "area_ha": 21.7 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-47.4020, -22.5602], [-47.3970, -22.5600], [-47.3967, -22.5643], [-47.4016, -22.5646], [-47.4020, -22.5602]]]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "Talhão Experimental Sul", "cultivar": "Hamlin", "area_ha": 33.1 },
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [[[-47.4070, -22.5652], [-47.3998, -22.5651], [-47.3994, -22.5697], [-47.4063, -22.5700], [-47.4070, -22.5652]]]
+      }
+    }
+  ]
+}

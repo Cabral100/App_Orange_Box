@@ -2,18 +2,18 @@ import { StyleSheet, Text, View } from "react-native";
 import type { DashboardRow } from "../analytics";
 import { colors, fonts } from "../theme";
 
-const SEGMENTS = 72;
+const SEGMENTS = 180;
 
 export function PieChart({ rows, size = 210 }: { rows: DashboardRow[]; size?: number }) {
   const positive = rows.filter((row) => row.count > 0);
   const total = positive.reduce((sum, row) => sum + row.count, 0);
   const radius = size * 0.36;
-  const markerWidth = Math.max(8, size * 0.047);
-  const markerHeight = Math.max(15, size * 0.105);
+  const markerWidth = Math.max(6, size * 0.034);
+  const markerHeight = Math.max(20, size * 0.13);
   const center = size / 2;
   const cumulative = positive.reduce<Array<{ end: number; color: string }>>((items, row) => {
     const previous = items.at(-1)?.end ?? 0;
-    items.push({ end: previous + row.count / Math.max(total, 1), color: row.color });
+    items.push({ end: previous + row.count / Math.max(total, 1), color: row.chartColor });
     return items;
   }, []);
 
@@ -36,7 +36,6 @@ export function PieChart({ rows, size = 210 }: { rows: DashboardRow[]; size?: nu
               top: center + Math.sin(angle) * radius - markerHeight / 2,
               width: markerWidth,
               height: markerHeight,
-              borderRadius: markerWidth / 2,
               backgroundColor: color,
               transform: [{ rotate: `${angle + Math.PI / 2}rad` }],
             }}

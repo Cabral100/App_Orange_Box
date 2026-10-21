@@ -1,11 +1,22 @@
 {
   "source": "backend/models/best.pt",
+  "sourceSha256": "84FB5A7EDE6CDF6F351866E5FE5C113DEDFB68787AA29012BD84C4EEAAD4AE6A",
   "format": "ONNX",
   "task": "detect",
+  "architecture": "YOLO26n",
   "classNames": ["Acaro"],
   "input": [1, 3, 640, 640],
   "output": [1, 300, 6],
   "outputColumns": ["x1", "y1", "x2", "y2", "confidence", "classId"],
   "confirmedThreshold": 0.95,
-  "sha256": "5DAA66FEE49524C5F0F0ED1D8945EA1BE858347970A508EEC73C85DE5DD7A962"
+  "sha256": "0D16E6A65942717B5F8838571B2E3205F8A36C7E4A308D9D8DC7D06603032481",
+  "reportedMetrics": {
+    "precision": 0.9299,
+    "recall": 0.958,
+    "f1": 0.9437,
+    "map50": 0.951,
+    "latencyMsPerImage": 10.8,
+    "fps": 92.6,
+    "hardware": "Google Colab T4"
+  }
 }

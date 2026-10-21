@@ -1,0 +1,14 @@
+node_modules/
+.expo/
+.expo-home/
+.npm-cache/
+.env
+dist/
+dist-native/
+dist-go/
+android/
+npm-debug.log*
+
+# O modelo real é necessário nos perfis EAS com
+# EXPO_PUBLIC_CYF_NATIVE_MODEL=1, mesmo sendo ignorado pelo Git na raiz.
+!assets/models/best.onnx

@@ -11,6 +11,7 @@ import type { Coordinates, InferenceResult, InspectionRecord, PhotoAnalyzer, Plo
 import { colors, fonts, radii, shadow } from "../theme";
 
 const SCAN_INTERVAL_MS = 3500;
+const LOCATION_TIMEOUT_MS = 8000;
 const screenWidth = Dimensions.get("window").width;
 const scanSize = Math.min(screenWidth - 64, 350);
 
@@ -35,12 +36,27 @@ function fromPosition(position: Location.LocationObject | null): Coordinates | n
 
 function exifCoordinate(exif: Record<string, unknown> | null | undefined): Coordinates | null {
   if (!exif) return null;
-  let latitude = Number(exif.GPSLatitude ?? exif.latitude);
-  let longitude = Number(exif.GPSLongitude ?? exif.longitude);
+  let latitude = exifNumber(exif.GPSLatitude ?? exif.latitude);
+  let longitude = exifNumber(exif.GPSLongitude ?? exif.longitude);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null;
   if (String(exif.GPSLatitudeRef || "").toUpperCase() === "S") latitude = -Math.abs(latitude);
   if (String(exif.GPSLongitudeRef || "").toUpperCase() === "W") longitude = -Math.abs(longitude);
+  if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return null;
   return { latitude, longitude, accuracy: null, altitude: null, source: "exif" };
+}
+
+function exifNumber(value: unknown): number {
+  if (Array.isArray(value) && value.length >= 3) {
+    const degrees = Number(value[0]);
+    const minutes = Number(value[1]);
+    const seconds = Number(value[2]);
+    if ([degrees, minutes, seconds].every(Number.isFinite)) return Math.abs(degrees) + minutes / 60 + seconds / 3600;
+  }
+  if (typeof value === "string" && value.includes(",")) {
+    const parts = value.split(",").map((part) => Number(part.trim()));
+    if (parts.length >= 3 && parts.every(Number.isFinite)) return Math.abs(parts[0] || 0) + (parts[1] || 0) / 60 + (parts[2] || 0) / 3600;
+  }
+  return Number(value);
 }
 
 export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prepareAnalyzer, demoMode = false }: Props) {
@@ -78,6 +94,21 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
 
   const confidence = analysis?.detections[0]?.confidence || 0;
   const confidencePercent = Math.round(confidence * 100);
+  const guidance = confidence >= CONFIRMED_THRESHOLD
+    ? "Boa distância — mantenha firme"
+    : confidence > 0
+      ? "Aproxime-se da praga e mantenha firme"
+      : "Aponte e aproxime-se da praga";
+
+  const resolveCurrentLocation = useCallback(async () => {
+    const freshPromise = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
+    const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), LOCATION_TIMEOUT_MS));
+    const fresh = await Promise.race([freshPromise, timeoutPromise]).catch(() => null);
+    const fallback = fresh || await Location.getLastKnownPositionAsync({ maxAge: 30_000, requiredAccuracy: 200 }).catch(() => null);
+    const coordinates = fromPosition(fallback) || location;
+    if (coordinates) setLocation(coordinates);
+    return coordinates;
+  }, [location]);
 
   const storeAnalysis = useCallback(async (preparedUri: string, result: InferenceResult, source: "camera" | "gallery", captureLocation: Coordinates | null) => {
     const recordId = id();
@@ -108,9 +139,21 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
       setAnalysis(offline.result);
       const best = offline.result.detections[0]?.confidence || 0;
       if (best < 0.8) armedRef.current = true;
+      if (best > 0 && best < CONFIRMED_THRESHOLD) {
+        armedRef.current = true;
+        setMessage("Confiança baixa — aproxime-se da praga e mantenha firme");
+        return;
+      }
       if (options.manual || (best >= CONFIRMED_THRESHOLD && armedRef.current)) {
         armedRef.current = false;
-        await storeAnalysis(offline.imageUri, offline.result, options.source, options.captureLocation);
+        const captureLocation = options.source === "camera" ? await resolveCurrentLocation() : options.captureLocation;
+        if (!captureLocation) {
+          armedRef.current = true;
+          setMessage("Ative a localização para registrar as coordenadas da foto");
+          if (options.manual) Alert.alert("Localização necessária", "Ative a localização precisa para salvar a inspeção no ponto correto do mapa.");
+          return;
+        }
+        await storeAnalysis(offline.imageUri, offline.result, options.source, captureLocation);
       } else {
         setMessage(best > 0 ? "Possível sinal — aproxime e estabilize" : "Nenhum sinal neste quadro");
       }
@@ -120,7 +163,7 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
       inFlightRef.current = false;
       setWorking(false);
     }
-  }, [analyzer, storeAnalysis]);
+  }, [analyzer, resolveCurrentLocation, storeAnalysis]);
 
   const capture = useCallback(async (manual: boolean) => {
     if (!cameraRef.current || !ready || !modelReady || inFlightRef.current) return;
@@ -144,7 +187,15 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
       const picked = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 1, exif: true, allowsEditing: false, selectionLimit: 1 });
       const asset = picked.canceled ? null : picked.assets[0];
       if (!asset) return;
-      const captureLocation = exifCoordinate(asset.exif as Record<string, unknown> | null) || location;
+      const exifLocation = exifCoordinate(asset.exif as Record<string, unknown> | null);
+      const captureLocation = exifLocation || await resolveCurrentLocation();
+      if (!exifLocation && captureLocation) {
+        Alert.alert("Foto sem coordenadas EXIF", "Esta imagem não informa onde foi tirada. O app usará sua localização atual.");
+      }
+      if (!captureLocation) {
+        Alert.alert("Localização indisponível", "A foto não possui GPS/EXIF e sua localização atual não pôde ser obtida.");
+        return;
+      }
       await analyzePhoto({ uri: asset.uri, width: asset.width, height: asset.height }, { manual: true, source: "gallery", captureLocation });
     } catch (error) {
       Alert.alert("Galeria indisponível", error instanceof Error ? error.message : "Não foi possível abrir suas fotos.");
@@ -163,12 +214,19 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
 
       <View style={styles.topLeftActions}>
         <CameraButton icon="chevron-left" label="Voltar ao histórico" onPress={onBack} />
+      </View>
+
+      <View style={styles.topRightActions}>
+        <View style={styles.detectorPill} accessibilityLabel={`Confiança da análise ${confidencePercent}%`}>
+          <View style={styles.detectorHead}><Text style={styles.detectorText}>{confidence ? "Ácaro" : "Buscando"}</Text><Text style={styles.detectorValue}>{confidencePercent}%</Text></View>
+          <View style={styles.miniTrack}><View style={[styles.miniFill, { width: `${Math.max(3, confidencePercent)}%` }]} /></View>
+        </View>
         <CameraButton icon="information-outline" label="Como funciona a câmera" onPress={() => setHelp(true)} />
       </View>
 
-      <View style={styles.detectorPill} accessibilityLabel={`Confiança da análise ${confidencePercent}%`}>
-        <View style={styles.detectorHead}><Text style={styles.detectorText}>{confidence ? "Sinal" : "Buscando"}</Text><Text style={styles.detectorValue}>{confidencePercent}%</Text></View>
-        <View style={[styles.miniTrack, { width: 42 + confidence * 70 }]}><View style={[styles.miniFill, { width: `${Math.max(3, confidencePercent)}%` }]} /></View>
+      <View style={[styles.guidancePill, confidence >= CONFIRMED_THRESHOLD && styles.guidanceReady]} pointerEvents="none">
+        <MaterialCommunityIcons name={confidence >= CONFIRMED_THRESHOLD ? "check-circle-outline" : "arrow-expand"} size={16} color={colors.white} />
+        <Text style={styles.guidanceText}>{guidance}</Text>
       </View>
 
       <View style={[styles.scanBox, { width: scanSize, height: scanSize }]} pointerEvents="none">
@@ -184,7 +242,7 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
       <View style={styles.messagePill}><View style={[styles.liveDot, modelReady && styles.liveDotReady]} /><Text numberOfLines={1} style={styles.message}>{message}</Text>{demoMode ? <Text style={styles.demo}>DEMO</Text> : null}</View>
       <View style={styles.controls}>
         <Pressable accessibilityLabel="Abrir galeria" onPress={chooseFromGallery} style={({ pressed }) => [styles.sideControl, pressed && styles.pressed]}><MaterialCommunityIcons name="image-outline" size={28} color={colors.white} /><Text style={styles.controlLabel}>Galeria</Text></Pressable>
-        <Pressable disabled={working || !modelReady} onPress={() => capture(true)} accessibilityLabel="Capturar e analisar" style={({ pressed }) => [styles.shutterOuter, pressed && styles.pressed]}><View style={styles.shutterInner}>{working ? <ActivityIndicator color={colors.white} /> : null}</View></Pressable>
+        <Pressable disabled={working || !modelReady} onPress={() => capture(true)} accessibilityLabel="Capturar e analisar" style={({ pressed }) => [styles.shutterOuter, pressed && styles.pressed]}><View style={styles.shutterInner}>{working ? <ActivityIndicator color={colors.green} /> : null}</View></Pressable>
         <Pressable accessibilityLabel={torch ? "Desligar flash" : "Ligar flash"} onPress={() => setTorch((value) => !value)} style={({ pressed }) => [styles.sideControl, torch && styles.sideControlActive, pressed && styles.pressed]}><MaterialCommunityIcons name={torch ? "flash" : "flash-off"} size={28} color={torch ? colors.orange : colors.white} /><Text style={styles.controlLabel}>Flash</Text></Pressable>
       </View>
 
@@ -213,11 +271,14 @@ function HelpRow({ icon, title, copy }: { icon: keyof typeof MaterialCommunityIc
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: "#000" }, shade: { position: "absolute", inset: 0, backgroundColor: "rgba(0,0,0,0.09)" },
-  topLeftActions: { position: "absolute", top: 52, left: 16, flexDirection: "row", gap: 9 }, cameraButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,12,9,0.48)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)" },
-  detectorPill: { position: "absolute", top: 55, right: 16, minWidth: 128, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 17, backgroundColor: "rgba(8,12,9,0.55)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", alignItems: "flex-end" }, detectorHead: { width: "100%", flexDirection: "row", justifyContent: "space-between", gap: 10 }, detectorText: { color: "rgba(255,255,255,0.74)", fontFamily: fonts.medium, fontSize: 9 }, detectorValue: { color: colors.white, fontFamily: fonts.bold, fontSize: 11 }, miniTrack: { height: 4, maxWidth: 112, marginTop: 6, borderRadius: 3, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.25)" }, miniFill: { height: "100%", borderRadius: 3, backgroundColor: colors.orange },
+  topLeftActions: { position: "absolute", top: 52, left: 16 }, cameraButton: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(8,12,9,0.48)", borderWidth: 1, borderColor: "rgba(255,255,255,0.25)" },
+  topRightActions: { position: "absolute", top: 52, right: 16, flexDirection: "row", alignItems: "center", gap: 8 },
+  guidancePill: { position: "absolute", top: 112, alignSelf: "center", minHeight: 34, maxWidth: "82%", paddingHorizontal: 13, borderRadius: 17, flexDirection: "row", alignItems: "center", gap: 7, backgroundColor: "rgba(8,12,9,0.68)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" },
+  guidanceReady: { backgroundColor: "rgba(13,107,64,0.88)" }, guidanceText: { color: colors.white, fontFamily: fonts.semibold, fontSize: 10 },
+  detectorPill: { width: 112, height: 48, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 17, backgroundColor: "rgba(8,12,9,0.55)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)", justifyContent: "center" }, detectorHead: { width: "100%", flexDirection: "row", justifyContent: "space-between", gap: 10 }, detectorText: { color: "rgba(255,255,255,0.74)", fontFamily: fonts.medium, fontSize: 9 }, detectorValue: { color: colors.white, fontFamily: fonts.bold, fontSize: 11 }, miniTrack: { width: "100%", height: 4, marginTop: 6, borderRadius: 3, overflow: "hidden", backgroundColor: "rgba(255,255,255,0.25)" }, miniFill: { height: "100%", borderRadius: 3, backgroundColor: colors.orange },
   scanBox: { position: "absolute", top: 168, alignSelf: "center" }, corner: { position: "absolute", width: 43, height: 43, borderColor: colors.white }, topLeft: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 16 }, topRight: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 16 }, bottomLeft: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 16 }, bottomRight: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 16 }, focusCircle: { position: "absolute", left: "50%", top: "50%", marginLeft: -27, marginTop: -27, width: 54, height: 54, borderRadius: 27, borderWidth: 1.5, borderColor: "rgba(255,255,255,0.72)", alignItems: "center", justifyContent: "center" }, focusDot: { width: 21, height: 21, borderRadius: 11, borderWidth: 2, borderColor: colors.green }, box: { position: "absolute", borderWidth: 2, borderColor: colors.orange, borderRadius: 5, backgroundColor: "rgba(233,78,11,0.08)" },
   messagePill: { position: "absolute", left: 27, right: 27, bottom: 143, minHeight: 39, borderRadius: 20, paddingHorizontal: 14, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "rgba(8,12,9,0.6)" }, liveDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: colors.muted }, liveDotReady: { backgroundColor: "#53D57B" }, message: { flex: 1, color: colors.white, fontFamily: fonts.medium, fontSize: 10 }, demo: { color: colors.orange, fontFamily: fonts.bold, fontSize: 8, letterSpacing: 0.7 },
-  controls: { position: "absolute", left: 0, right: 0, bottom: 20, height: 112, paddingHorizontal: 33, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(4,7,5,0.32)" }, sideControl: { width: 65, height: 65, borderRadius: 33, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(14,18,15,0.62)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" }, sideControlActive: { borderColor: colors.orange }, controlLabel: { color: colors.white, fontFamily: fonts.medium, fontSize: 8, marginTop: 2 }, shutterOuter: { width: 86, height: 86, borderRadius: 43, borderWidth: 4, borderColor: colors.white, padding: 6, alignItems: "center", justifyContent: "center" }, shutterInner: { width: "100%", height: "100%", borderRadius: 37, backgroundColor: colors.orange, alignItems: "center", justifyContent: "center" }, pressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
+  controls: { position: "absolute", left: 0, right: 0, bottom: 20, height: 112, paddingHorizontal: 33, flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: "rgba(4,7,5,0.32)" }, sideControl: { width: 65, height: 65, borderRadius: 33, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(14,18,15,0.62)", borderWidth: 1, borderColor: "rgba(255,255,255,0.2)" }, sideControlActive: { borderColor: colors.orange }, controlLabel: { color: colors.white, fontFamily: fonts.medium, fontSize: 8, marginTop: 2 }, shutterOuter: { width: 86, height: 86, borderRadius: 43, borderWidth: 4, borderColor: colors.white, padding: 6, alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.12)" }, shutterInner: { width: "100%", height: "100%", borderRadius: 37, backgroundColor: colors.white, alignItems: "center", justifyContent: "center" }, pressed: { opacity: 0.72, transform: [{ scale: 0.96 }] },
   permission: { flex: 1, padding: 34, alignItems: "center", justifyContent: "center", backgroundColor: colors.paper }, permissionTitle: { color: colors.ink, fontFamily: fonts.extraBold, fontSize: 23, textAlign: "center", marginTop: 20 }, permissionCopy: { color: colors.muted, fontFamily: fonts.regular, fontSize: 13, lineHeight: 20, textAlign: "center", marginTop: 10 }, permissionButton: { marginTop: 24, backgroundColor: colors.green, borderRadius: radii.pill, paddingHorizontal: 28, paddingVertical: 15 }, permissionButtonText: { color: colors.white, fontFamily: fonts.bold },
   modalShade: { flex: 1, justifyContent: "flex-end", padding: 12, backgroundColor: "rgba(0,0,0,0.48)" }, helpCard: { borderRadius: 30, padding: 20, paddingBottom: 24, backgroundColor: colors.paper, ...shadow }, helpHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }, helpTitle: { color: colors.ink, fontFamily: fonts.black, fontSize: 25 }, helpRow: { flexDirection: "row", gap: 12, alignItems: "center", paddingVertical: 11 }, helpIcon: { width: 43, height: 43, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.greenSoft }, helpCopyWrap: { flex: 1 }, helpRowTitle: { color: colors.ink, fontFamily: fonts.bold, fontSize: 13 }, helpRowCopy: { color: colors.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 16, marginTop: 2 }, helpNote: { marginTop: 8, padding: 13, borderRadius: 15, backgroundColor: colors.greenSoft, flexDirection: "row", gap: 9 }, helpNoteText: { flex: 1, color: colors.greenDark, fontFamily: fonts.regular, fontSize: 10, lineHeight: 15 }, helpButton: { height: 54, borderRadius: radii.pill, marginTop: 16, backgroundColor: colors.green, alignItems: "center", justifyContent: "center" }, helpButtonText: { color: colors.white, fontFamily: fonts.bold, fontSize: 14 },
   success: { position: "absolute", inset: 0, zIndex: 20, backgroundColor: colors.green, alignItems: "center", justifyContent: "center", padding: 28 }, successCheck: { width: 130, height: 130, borderRadius: 66, alignItems: "center", justifyContent: "center", backgroundColor: colors.white }, successTitle: { color: colors.white, fontFamily: fonts.black, fontSize: 30, textAlign: "center", marginTop: 27 }, successCopy: { color: "#D9EDE0", fontFamily: fonts.medium, fontSize: 14, marginTop: 9 },

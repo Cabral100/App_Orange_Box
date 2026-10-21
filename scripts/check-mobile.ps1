@@ -3,7 +3,7 @@ $ErrorActionPreference = "Stop"
 $projectRoot = Split-Path -Parent $PSScriptRoot
 $mobileRoot = Join-Path $projectRoot "mobile"
 $modelPath = Join-Path $mobileRoot "assets\models\best.onnx"
-$expectedHash = "5DAA66FEE49524C5F0F0ED1D8945EA1BE858347970A508EEC73C85DE5DD7A962"
+$expectedHash = "0D16E6A65942717B5F8838571B2E3205F8A36C7E4A308D9D8DC7D06603032481"
 
 if (-not (Test-Path -LiteralPath $modelPath)) {
     throw "Modelo offline ausente: $modelPath"

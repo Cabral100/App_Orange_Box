@@ -8,7 +8,7 @@ import { colors, fonts, radii, shadow } from "../theme";
 
 export function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
   const [mode, setMode] = useState<"login" | "create">("login");
-  const [name, setName] = useState("Operador de campo");
+  const [name, setName] = useState("Rafael Almeida");
   const [email, setEmail] = useState("teste@cyf.app");
   const [password, setPassword] = useState("123456");
   const [showPassword, setShowPassword] = useState(false);
@@ -33,12 +33,12 @@ export function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }
       return;
     }
     setError("");
-    onLogin({ name: name.trim() || "Operador de campo", email: email.trim() });
+    onLogin({ name: name.trim() || "Rafael Almeida", email: email.trim() });
   }
 
   function continueWithGoogle() {
     setError("");
-    onLogin({ name: "Operador de campo", email: "operador@gmail.com" });
+    onLogin({ name: "Rafael Almeida", email: "rafael@cyf.app" });
   }
 
   return (

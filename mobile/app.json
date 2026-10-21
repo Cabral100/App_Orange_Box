@@ -1,13 +1,19 @@
 {
   "expo": {
     "name": "CYF",
-    "slug": "cyf-clean-your-farm",
+    "slug": "cyf",
     "owner": "lucas-cabral",
     "version": "1.0.0",
     "orientation": "portrait",
     "assetBundlePatterns": [
       "assets/**/*"
     ],
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/84ffe1c1-9c4a-4eb7-8e9f-3a48f3a336d1"
+    },
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "br.com.clean-your-farm.cyf",
@@ -15,9 +21,6 @@
         "NSCameraUsageDescription": "O CYF usa a câmera para registrar e analisar laranjas no campo.",
         "NSLocationWhenInUseUsageDescription": "O CYF usa sua localização para associar a vistoria ao talhão correto.",
         "NSPhotoLibraryUsageDescription": "O CYF permite selecionar fotos de laranjas para análise."
-      },
-      "runtimeVersion": {
-        "policy": "appVersion"
       }
     },
     "android": {
@@ -36,7 +39,8 @@
       [
         "expo-camera",
         {
-          "cameraPermission": "Permita que o CYF use a câmera para inspecionar as laranjas."
+          "cameraPermission": "Permita que o CYF use a câmera para inspecionar as laranjas.",
+          "recordAudioAndroid": false
         }
       ],
       [
@@ -54,7 +58,7 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "a15277b4-e02f-4f0f-a425-ff093b741d18"
+        "projectId": "84ffe1c1-9c4a-4eb7-8e9f-3a48f3a336d1"
       }
     }
   }

@@ -109,7 +109,7 @@ Na raiz do projeto:
 O script confere o hash do modelo empacotado e executa a checagem TypeScript. O checkpoint convertido esperado é:
 
 ```text
-5DAA66FEE49524C5F0F0ED1D8945EA1BE858347970A508EEC73C85DE5DD7A962
+0D16E6A65942717B5F8838571B2E3205F8A36C7E4A308D9D8DC7D06603032481
 ```
 
 ## Limite importante do protótipo

@@ -148,3 +148,25 @@ export function geometryRings(geometry: GeoJsonGeometry) {
   const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
   return polygons.map((polygon) => (polygon[0] || []).map(([longitude = 0, latitude = 0]) => ({ latitude, longitude })));
 }
+
+export function geometryAreaSquareMeters(geometry: GeoJsonGeometry) {
+  const earthRadius = 6_378_137;
+  const radians = (value: number) => value * Math.PI / 180;
+  const ringArea = (ring: number[][]) => {
+    if (ring.length < 3) return 0;
+    let total = 0;
+    for (let index = 0; index < ring.length; index += 1) {
+      const current = ring[index];
+      const next = ring[(index + 1) % ring.length];
+      if (!current || !next) continue;
+      total += radians((next[0] || 0) - (current[0] || 0)) * (2 + Math.sin(radians(current[1] || 0)) + Math.sin(radians(next[1] || 0)));
+    }
+    return Math.abs(total * earthRadius * earthRadius / 2);
+  };
+  const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.coordinates;
+  return polygons.reduce((sum, polygon) => {
+    const outer = polygon[0] ? ringArea(polygon[0]) : 0;
+    const holes = polygon.slice(1).reduce((holeSum, ring) => holeSum + ringArea(ring), 0);
+    return sum + Math.max(0, outer - holes);
+  }, 0);
+}

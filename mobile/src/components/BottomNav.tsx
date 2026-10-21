@@ -5,7 +5,7 @@ import { colors, radii, shadow } from "../theme";
 
 const tabs: { id: TabId; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
   { id: "map", label: "Mapa", icon: "map-outline" },
-  { id: "history", label: "Histórico", icon: "book-outline" },
+  { id: "history", label: "Histórico", icon: "history" },
   { id: "camera", label: "Câmera", icon: "camera-outline" },
   { id: "dashboard", label: "Relatórios", icon: "chart-pie" },
   { id: "account", label: "Conta", icon: "account-outline" },
@@ -46,7 +46,7 @@ const styles = StyleSheet.create({
   },
   item: { flex: 1, height: 62, alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 22 },
   cameraItem: { transform: [{ translateY: -15 }], overflow: "visible" },
-  cameraButton: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: colors.orange, borderWidth: 4, borderColor: colors.white, ...shadow },
+  cameraButton: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: colors.orange, ...shadow },
   cameraButtonActive: { backgroundColor: colors.green },
   selected: { backgroundColor: colors.white },
   pressed: { opacity: 0.72 },
