@@ -4,9 +4,7 @@ Este diretório contém o aplicativo **React Native + Expo**, separado da versã
 
 ## Compatibilidade com o Expo Go no iPhone
 
-O aplicativo está atualizado para o **SDK 57**, exigido pelo Expo Go 57.0.9. O Expo Snack ainda não disponibiliza um runtime nativo SDK 57, portanto o projeto hospedado abaixo serve para consultar o código, mas ainda não pode executar nessa versão do Expo Go:
-
-<https://snack.expo.dev/@lucas-cabral/cyf-%E2%80%94-clean-your-farm>
+O aplicativo está atualizado para o **SDK 58**, compatível com o Expo Go 58.0.5 (Supported SDK 58.0.0).
 
 Para testar gratuitamente no iPhone, use o servidor LAN descrito abaixo. O [`CYF_EXPO_GO_QR.png`](./CYF_EXPO_GO_QR.png) aponta para o endereço LAN atual `exp://192.168.15.110:8082` e funciona enquanto o servidor estiver ativo e os dois aparelhos estiverem na mesma rede.
 
@@ -21,6 +19,13 @@ npm run start:go
 ```
 
 Deixe o computador e o iPhone na mesma rede Wi-Fi e leia com a câmera do iPhone o QR Code exibido no terminal. O Expo Go abre automaticamente um modo de demonstração: câmera, GPS, Apple Maps, talhões, histórico, armazenamento local, dashboard e PDF funcionam, mas a detecção exibida após tocar no obturador é simulada e aparece identificada como tal.
+
+### Contas de teste
+
+- **Inspeção:** usuário `inspecao`, senha `campo123`. Acesso a Câmera, Mapa, Histórico e Conta.
+- **Administrador:** usuário `admin`, senha `admin123`. Acesso completo, incluindo Relatórios.
+
+Ao selecionar o perfil na tela de login, os dados correspondentes já são preenchidos.
 
 O comando usa o modo offline/LAN para não depender da autenticação nem da consulta HTTPS do Expo. Se o iPhone não alcançar o computador, permita o Node.js no Firewall do Windows para redes privadas e confirme que ambos estão no mesmo Wi-Fi, sem VPN.
 

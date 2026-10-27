@@ -75,9 +75,12 @@ export type Plot = {
   source: "drawn" | "geojson" | "estimated";
 };
 
+export type UserRole = "admin" | "inspection";
+
 export type Session = {
   name: string;
   email: string;
+  role: UserRole;
 };
 
 export type AppSnapshot = {

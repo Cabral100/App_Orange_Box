@@ -1,7 +1,7 @@
 import MaterialCommunityIcons from "@expo/vector-icons/MaterialCommunityIcons";
 import { Pressable, StyleSheet, Text, View } from "react-native";
-import type { TabId } from "../types";
-import { colors, radii, shadow } from "../theme";
+import type { TabId, UserRole } from "../types";
+import { colors, fonts, radii, shadow } from "../theme";
 
 const tabs: { id: TabId; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
   { id: "map", label: "Mapa", icon: "map-outline" },
@@ -11,10 +11,11 @@ const tabs: { id: TabId; label: string; icon: keyof typeof MaterialCommunityIcon
   { id: "account", label: "Conta", icon: "account-outline" },
 ];
 
-export function BottomNav({ active, onChange }: { active: TabId; onChange: (tab: TabId) => void }) {
+export function BottomNav({ active, onChange, role }: { active: TabId; onChange: (tab: TabId) => void; role: UserRole }) {
+  const visibleTabs = role === "admin" ? tabs : tabs.filter((tab) => tab.id !== "dashboard");
   return (
     <View style={styles.shell} accessibilityRole="tablist">
-      {tabs.map((tab) => {
+      {visibleTabs.map((tab) => {
         const selected = tab.id === active;
         const camera = tab.id === "camera";
         return (
@@ -50,7 +51,7 @@ const styles = StyleSheet.create({
   cameraButtonActive: { backgroundColor: colors.green },
   selected: { backgroundColor: colors.white },
   pressed: { opacity: 0.72 },
-  label: { color: colors.muted, fontSize: 11, fontWeight: "600" },
-  selectedLabel: { color: colors.green, fontWeight: "800" },
+  label: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 13 },
+  selectedLabel: { color: colors.green, fontFamily: fonts.extraBold },
   cameraLabel: { marginTop: 0, color: colors.orange },
 });

@@ -43,8 +43,7 @@ export function AppShell({ analyzer, prepareAnalyzer, demoMode = false }: Props)
 
   useEffect(() => {
     loadSnapshot().then((snapshot) => demoMode ? seedDemoSnapshot(snapshot, getDemoPlots(), getDemoRecords()) : snapshot).then(async (snapshot) => {
-      const previousName = snapshot.session?.name.trim().toLowerCase();
-      const normalizedSession = previousName === "operador de campo" || previousName === "lucas cabral" || previousName === "elon musk" ? { ...snapshot.session!, name: "Rafael Almeida", email: "rafael@cyf.app" } : snapshot.session;
+      const normalizedSession = snapshot.session ? { ...snapshot.session, role: snapshot.session.role || "inspection" as const } : null;
       if (normalizedSession !== snapshot.session) await saveSession(normalizedSession);
       setSession(normalizedSession); setRecords(snapshot.records); setPlots(snapshot.plots); setLoaded(true);
     }).catch(() => setLoaded(true));
@@ -52,7 +51,7 @@ export function AppShell({ analyzer, prepareAnalyzer, demoMode = false }: Props)
 
   const resultPlot = useMemo(() => resultRecord ? findPlot(plots, resultRecord.location) : null, [plots, resultRecord]);
 
-  async function login(nextSession: Session) { setSession(nextSession); await saveSession(nextSession); }
+  async function login(nextSession: Session) { setSession(nextSession); setActiveTab("camera"); await saveSession(nextSession); }
   async function logout() { setSession(null); setActiveTab("camera"); await saveSession(null); }
   async function updatePlots(nextPlots: Plot[]) { setPlots(nextPlots); await savePlots(nextPlots); }
 
@@ -142,10 +141,10 @@ export function AppShell({ analyzer, prepareAnalyzer, demoMode = false }: Props)
       <StatusBar style={activeTab === "camera" || activeTab === "map" ? "light" : "dark"} />
       {activeTab === "camera" && <CameraScreen plots={plots} active onBack={() => setActiveTab("history")} onCaptured={capture} analyzer={analyzer} prepareAnalyzer={prepareAnalyzer} demoMode={demoMode} />}
       {activeTab === "map" && <MapScreen records={records} plots={plots} onPlotsChange={updatePlots} onPlotUpdate={updatePlot} onPlotDelete={deletePlot} startDrawing={Boolean(drawingRequest)} draftLocation={drawingRequest?.location || null} onPlotCreated={completeManualPlot} pendingRecord={pendingMapRecord} onUseExistingPlot={useExistingPlot} onCreatePlotByArea={createPlotByArea} onDrawPendingPlot={drawPlotForResult} onDismissPending={() => setPendingMapRecord(null)} />}
-      {activeTab === "history" && <HistoryScreen records={records} plots={plots} onDashboard={() => setActiveTab("dashboard")} onSelect={setResultRecord} onUpdate={updateRecord} onDelete={deleteRecord} />}
-      {activeTab === "dashboard" && <DashboardScreen records={records} plots={plots} />}
+      {activeTab === "history" && <HistoryScreen records={records} plots={plots} onDashboard={session.role === "admin" ? () => setActiveTab("dashboard") : undefined} onSelect={setResultRecord} onUpdate={updateRecord} onDelete={deleteRecord} />}
+      {activeTab === "dashboard" && session.role === "admin" && <DashboardScreen records={records} plots={plots} />}
       {activeTab === "account" && <AccountScreen session={session} records={records} plots={plots} onLogout={logout} demoMode={demoMode} />}
-      {activeTab !== "camera" ? <BottomNav active={activeTab} onChange={setActiveTab} /> : null}
+      {activeTab !== "camera" ? <BottomNav active={activeTab} onChange={setActiveTab} role={session.role} /> : null}
     </View>
   );
 }

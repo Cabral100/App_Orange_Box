@@ -3,137 +3,162 @@ import { useState } from "react";
 import {
   Image, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View,
 } from "react-native";
-import type { Session } from "../types";
+import type { Session, UserRole } from "../types";
 import { colors, fonts, radii, shadow } from "../theme";
 
+const TEST_ACCOUNTS: Record<UserRole, { user: string; password: string; name: string; email: string }> = {
+  inspection: { user: "inspecao", password: "campo123", name: "Marcos Oliveira", email: "inspecao@cyf.app" },
+  admin: { user: "admin", password: "admin123", name: "Lucas Cabral", email: "admin@cyf.app" },
+};
+
 export function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {
-  const [mode, setMode] = useState<"login" | "create">("login");
-  const [name, setName] = useState("Rafael Almeida");
-  const [email, setEmail] = useState("teste@cyf.app");
-  const [password, setPassword] = useState("123456");
+  const [role, setRole] = useState<UserRole>("inspection");
+  const [user, setUser] = useState(TEST_ACCOUNTS.inspection.user);
+  const [password, setPassword] = useState(TEST_ACCOUNTS.inspection.password);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
 
-  function changeMode(nextMode: "login" | "create") {
-    setMode(nextMode);
+  function chooseRole(nextRole: UserRole) {
+    const account = TEST_ACCOUNTS[nextRole];
+    setRole(nextRole);
+    setUser(account.user);
+    setPassword(account.password);
     setError("");
   }
 
   function submit() {
-    if (mode === "create" && !name.trim()) {
-      setError("Informe seu nome para criar a conta.");
-      return;
-    }
-    if (!email.includes("@")) {
-      setError("Informe um e-mail válido.");
-      return;
-    }
-    if (password.length < 6) {
-      setError("A senha precisa ter pelo menos 6 caracteres.");
+    const account = TEST_ACCOUNTS[role];
+    if (user.trim().toLowerCase() !== account.user || password !== account.password) {
+      setError(`Use o usuário e a senha de teste preenchidos para ${role === "admin" ? "Administrador" : "Inspeção"}.`);
       return;
     }
     setError("");
-    onLogin({ name: name.trim() || "Rafael Almeida", email: email.trim() });
+    onLogin({ name: account.name, email: account.email, role });
   }
 
   function continueWithGoogle() {
+    const account = TEST_ACCOUNTS[role];
     setError("");
-    onLogin({ name: "Rafael Almeida", email: "rafael@cyf.app" });
+    onLogin({ name: account.name, email: account.email, role });
   }
 
   return (
     <KeyboardAvoidingView style={styles.page} behavior={Platform.OS === "ios" ? "padding" : undefined}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         <View style={styles.intro}>
-          <Text style={styles.overline}>INSPEÇÃO DE CAMPO</Text>
-          <Text style={styles.title}>{mode === "login" ? "Bem-vindo" : "Crie sua conta"}</Text>
-          <Text style={styles.subtitle}>{mode === "login" ? "Entre para continuar suas inspeções." : "Preencha seus dados para começar."}</Text>
+          <Text style={styles.overline}>CYF · CLEAN YOUR FARM</Text>
+          <Text style={styles.title}>Acesso ao campo</Text>
+          <Text style={styles.subtitle}>Escolha sua função. A conta de teste será preenchida automaticamente.</Text>
         </View>
 
-        <View style={styles.tabs} accessibilityRole="tablist">
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === "login" }} onPress={() => changeMode("login")} style={[styles.tab, mode === "login" && styles.tabActive]}>
-            <Text style={[styles.tabText, mode === "login" && styles.tabTextActive]}>Entrar</Text>
-          </Pressable>
-          <Pressable accessibilityRole="tab" accessibilityState={{ selected: mode === "create" }} onPress={() => changeMode("create")} style={[styles.tab, mode === "create" && styles.tabActive]}>
-            <Text style={[styles.tabText, mode === "create" && styles.tabTextActive]}>Criar conta</Text>
-          </Pressable>
+        <Text style={styles.sectionLabel}>COMO VOCÊ VAI USAR O APP?</Text>
+        <View style={styles.roleRow} accessibilityRole="radiogroup">
+          <RoleCard
+            selected={role === "inspection"}
+            icon="account-hard-hat-outline"
+            title="Inspeção"
+            copy="Câmera, mapa e histórico"
+            onPress={() => chooseRole("inspection")}
+          />
+          <RoleCard
+            selected={role === "admin"}
+            icon="shield-account-outline"
+            title="Administrador"
+            copy="Acesso completo e relatórios"
+            onPress={() => chooseRole("admin")}
+          />
         </View>
 
         <View style={styles.form}>
-          {mode === "create" ? <Field label="Nome completo" placeholder="Como devemos chamar você?" value={name} onChangeText={setName} autoComplete="name" /> : null}
-          <Field label="E-mail" placeholder="seuemail@exemplo.com" value={email} onChangeText={setEmail} keyboardType="email-address" autoCapitalize="none" autoComplete="email" />
+          <Field label="Usuário" value={user} onChangeText={setUser} autoCapitalize="none" autoCorrect={false} autoComplete="username" />
           <View style={styles.field}>
             <Text style={styles.label}>Senha</Text>
             <View style={styles.passwordRow}>
               <TextInput
                 accessibilityLabel="Senha"
-                placeholder="Mínimo de 6 caracteres"
-                placeholderTextColor="#989D98"
+                placeholderTextColor={colors.muted}
                 style={styles.passwordInput}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
                 autoCapitalize="none"
-                autoComplete={mode === "login" ? "current-password" : "new-password"}
+                autoComplete="current-password"
               />
-              <Pressable onPress={() => setShowPassword((value) => !value)} hitSlop={10} accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}>
-                <MaterialCommunityIcons name={showPassword ? "eye-off-outline" : "eye-outline"} size={22} color={colors.green} />
+              <Pressable onPress={() => setShowPassword((value) => !value)} hitSlop={12} accessibilityLabel={showPassword ? "Ocultar senha" : "Mostrar senha"}>
+                <MaterialCommunityIcons name={showPassword ? "eye-off-outline" : "eye-outline"} size={25} color={colors.green} />
               </Pressable>
             </View>
           </View>
 
-          {error ? <View accessibilityRole="alert" style={styles.errorBox}><MaterialCommunityIcons name="alert-circle-outline" size={18} color={colors.red} /><Text style={styles.errorText}>{error}</Text></View> : null}
+          <View style={styles.ready}><MaterialCommunityIcons name="check-circle" size={20} color={colors.green} /><Text style={styles.readyText}>Conta de teste pronta para entrar</Text></View>
+          {error ? <View accessibilityRole="alert" style={styles.errorBox}><MaterialCommunityIcons name="alert-circle-outline" size={21} color={colors.red} /><Text style={styles.errorText}>{error}</Text></View> : null}
 
           <Pressable accessibilityRole="button" style={({ pressed }) => [styles.primary, pressed && styles.pressed]} onPress={submit}>
-            <Text style={styles.primaryText}>{mode === "login" ? "Entrar" : "Criar conta"}</Text>
+            <Text style={styles.primaryText}>Entrar como {role === "admin" ? "administrador" : "inspeção"}</Text>
           </Pressable>
         </View>
 
-        <View style={styles.divider}><View style={styles.line} /><Text style={styles.or}>ou continue com</Text><View style={styles.line} /></View>
-        <Pressable accessibilityLabel="Continuar com Google" onPress={continueWithGoogle} style={({ pressed }) => [styles.google, pressed && styles.pressed]}>
-          <Image accessibilityIgnoresInvertColors source={require("../../assets/google-g.png")} style={styles.googleLogo} />
-          <Text style={styles.googleText}>Google</Text>
-        </Pressable>
-
-        <Text style={styles.disclaimer}>Conta demonstrativa. Os dados desta versão ficam somente neste aparelho.</Text>
+        <View style={styles.googleArea}>
+          <View style={styles.divider}><View style={styles.line} /><Text style={styles.or}>ou</Text><View style={styles.line} /></View>
+          <Pressable accessibilityLabel="Continuar com Google" onPress={continueWithGoogle} style={({ pressed }) => [styles.google, pressed && styles.pressed]}>
+            <Image accessibilityIgnoresInvertColors source={require("../../assets/google-g.png")} style={styles.googleLogo} />
+            <Text style={styles.googleText}>Continuar com Google</Text>
+          </Pressable>
+          <Text style={styles.disclaimer}>Demonstração offline. Os dados ficam somente neste aparelho.</Text>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
 }
 
+function RoleCard({ selected, icon, title, copy, onPress }: { selected: boolean; icon: keyof typeof MaterialCommunityIcons.glyphMap; title: string; copy: string; onPress: () => void }) {
+  return <Pressable accessibilityRole="radio" accessibilityState={{ checked: selected }} accessibilityLabel={`${title}. ${copy}`} onPress={onPress} style={({ pressed }) => [styles.roleCard, selected && styles.roleCardSelected, pressed && styles.pressed]}>
+    <View style={[styles.roleIcon, selected && styles.roleIconSelected]}><MaterialCommunityIcons name={icon} size={27} color={selected ? colors.white : colors.green} /></View>
+    <Text style={[styles.roleTitle, selected && styles.roleTitleSelected]}>{title}</Text>
+    <Text style={[styles.roleCopy, selected && styles.roleCopySelected]}>{copy}</Text>
+    <View style={[styles.radio, selected && styles.radioSelected]}>{selected ? <View style={styles.radioCenter} /> : null}</View>
+  </Pressable>;
+}
+
 type FieldProps = React.ComponentProps<typeof TextInput> & { label: string };
 function Field({ label, ...props }: FieldProps) {
-  return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput accessibilityLabel={label} placeholderTextColor="#989D98" style={styles.input} {...props} /></View>;
+  return <View style={styles.field}><Text style={styles.label}>{label}</Text><TextInput accessibilityLabel={label} placeholderTextColor={colors.muted} style={styles.input} {...props} /></View>;
 }
 
 const styles = StyleSheet.create({
   page: { flex: 1, backgroundColor: colors.paper },
-  content: { flexGrow: 1, justifyContent: "center", paddingHorizontal: 24, paddingTop: 60, paddingBottom: 36 },
-  intro: { marginBottom: 28 },
-  overline: { color: colors.green, fontFamily: fonts.bold, fontSize: 10, letterSpacing: 1.8, marginBottom: 10 },
-  title: { color: colors.ink, fontFamily: fonts.black, fontSize: 36, letterSpacing: -1.4 },
-  subtitle: { color: colors.muted, fontFamily: fonts.regular, fontSize: 14, lineHeight: 21, marginTop: 8 },
-  tabs: { flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.line, marginBottom: 22 },
-  tab: { flex: 1, alignItems: "center", minHeight: 48, justifyContent: "center", borderBottomWidth: 3, borderBottomColor: "transparent" },
-  tabActive: { borderBottomColor: colors.green },
-  tabText: { color: "#959B96", fontFamily: fonts.semibold, fontSize: 14 },
-  tabTextActive: { color: colors.green },
-  google: { minHeight: 54, borderRadius: radii.pill, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.white, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, ...shadow },
-  googleLogo: { width: 20, height: 20, resizeMode: "contain" },
-  googleText: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 14 },
-  divider: { flexDirection: "row", alignItems: "center", gap: 12, marginVertical: 21 },
-  line: { flex: 1, height: 1, backgroundColor: colors.line },
-  or: { color: colors.muted, fontFamily: fonts.regular, fontSize: 12 },
-  form: { gap: 16 },
-  field: { gap: 7 },
-  label: { color: colors.ink, fontFamily: fonts.semibold, fontSize: 12 },
-  input: { height: 54, borderRadius: radii.small, borderWidth: 1, borderColor: colors.line, paddingHorizontal: 16, color: colors.ink, fontFamily: fonts.medium, fontSize: 14, backgroundColor: colors.white },
-  passwordRow: { height: 54, borderRadius: radii.small, borderWidth: 1, borderColor: colors.line, paddingLeft: 16, paddingRight: 14, flexDirection: "row", alignItems: "center", backgroundColor: colors.white },
-  passwordInput: { flex: 1, height: "100%", color: colors.ink, fontFamily: fonts.medium, fontSize: 14 },
-  errorBox: { minHeight: 43, paddingHorizontal: 12, paddingVertical: 9, borderRadius: 12, flexDirection: "row", alignItems: "center", gap: 8, backgroundColor: "#FFF0EE" },
-  errorText: { flex: 1, color: colors.red, fontFamily: fonts.medium, fontSize: 11, lineHeight: 16 },
-  primary: { height: 56, borderRadius: radii.pill, backgroundColor: colors.orange, alignItems: "center", justifyContent: "center", marginTop: 2 },
-  primaryText: { color: colors.white, fontFamily: fonts.bold, fontSize: 15 },
+  content: { flexGrow: 1, paddingHorizontal: 22, paddingTop: 64, paddingBottom: 30 },
+  intro: { marginBottom: 25 },
+  overline: { color: colors.green, fontFamily: fonts.extraBold, fontSize: 12, letterSpacing: 1.4, marginBottom: 10 },
+  title: { color: colors.ink, fontFamily: fonts.black, fontSize: 37, letterSpacing: -1.2 },
+  subtitle: { color: colors.muted, fontFamily: fonts.medium, fontSize: 16, lineHeight: 23, marginTop: 9 },
+  sectionLabel: { color: colors.greenDark, fontFamily: fonts.extraBold, fontSize: 12, letterSpacing: 1.1, marginBottom: 10 },
+  roleRow: { flexDirection: "row", gap: 10, marginBottom: 22 },
+  roleCard: { flex: 1, minHeight: 154, borderRadius: 22, padding: 14, borderWidth: 2, borderColor: colors.lineStrong, backgroundColor: colors.white },
+  roleCardSelected: { borderColor: colors.green, backgroundColor: colors.greenSoft },
+  roleIcon: { width: 46, height: 46, borderRadius: 15, alignItems: "center", justifyContent: "center", backgroundColor: colors.greenSoft },
+  roleIconSelected: { backgroundColor: colors.green },
+  roleTitle: { color: colors.ink, fontFamily: fonts.extraBold, fontSize: 17, marginTop: 10 },
+  roleTitleSelected: { color: colors.greenDark },
+  roleCopy: { color: colors.muted, fontFamily: fonts.medium, fontSize: 13, lineHeight: 18, marginTop: 3, paddingRight: 8 },
+  roleCopySelected: { color: colors.greenDark },
+  radio: { position: "absolute", top: 14, right: 14, width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.lineStrong, alignItems: "center", justifyContent: "center", backgroundColor: colors.white },
+  radioSelected: { borderColor: colors.green }, radioCenter: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.green },
+  form: { gap: 15 }, field: { gap: 7 },
+  label: { color: colors.ink, fontFamily: fonts.bold, fontSize: 15 },
+  input: { height: 58, borderRadius: radii.small, borderWidth: 2, borderColor: colors.lineStrong, paddingHorizontal: 16, color: colors.ink, fontFamily: fonts.semibold, fontSize: 17, backgroundColor: colors.white },
+  passwordRow: { height: 58, borderRadius: radii.small, borderWidth: 2, borderColor: colors.lineStrong, paddingLeft: 16, paddingRight: 14, flexDirection: "row", alignItems: "center", backgroundColor: colors.white },
+  passwordInput: { flex: 1, height: "100%", color: colors.ink, fontFamily: fonts.semibold, fontSize: 17 },
+  ready: { minHeight: 42, flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, borderRadius: 13, backgroundColor: colors.greenSoft },
+  readyText: { color: colors.greenDark, fontFamily: fonts.bold, fontSize: 13 },
+  errorBox: { minHeight: 48, paddingHorizontal: 13, paddingVertical: 10, borderRadius: 13, flexDirection: "row", alignItems: "center", gap: 9, backgroundColor: "#FFF0EE" },
+  errorText: { flex: 1, color: colors.red, fontFamily: fonts.semibold, fontSize: 13, lineHeight: 18 },
+  primary: { minHeight: 60, borderRadius: radii.pill, backgroundColor: colors.orange, alignItems: "center", justifyContent: "center", marginTop: 1, paddingHorizontal: 18 },
+  primaryText: { color: colors.white, fontFamily: fonts.extraBold, fontSize: 17, textAlign: "center" },
+  googleArea: { marginTop: "auto", paddingTop: 24 },
+  divider: { flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 17 }, line: { flex: 1, height: 1, backgroundColor: colors.lineStrong }, or: { color: colors.muted, fontFamily: fonts.semibold, fontSize: 14 },
+  google: { minHeight: 58, borderRadius: radii.pill, borderWidth: 2, borderColor: colors.lineStrong, backgroundColor: colors.white, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 11, ...shadow },
+  googleLogo: { width: 22, height: 22, resizeMode: "contain" }, googleText: { color: colors.ink, fontFamily: fonts.bold, fontSize: 16 },
   pressed: { opacity: 0.78 },
-  disclaimer: { color: colors.muted, fontFamily: fonts.regular, fontSize: 11, lineHeight: 17, textAlign: "center", marginTop: 24, paddingHorizontal: 18 },
+  disclaimer: { color: colors.muted, fontFamily: fonts.medium, fontSize: 12, lineHeight: 18, textAlign: "center", marginTop: 17, paddingHorizontal: 12 },
 });

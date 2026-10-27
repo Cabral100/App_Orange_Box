@@ -3,7 +3,7 @@ import * as FileSystem from "expo-file-system/legacy";
 import type { AppSnapshot, InspectionRecord, Plot, Session } from "./types";
 
 const KEYS = {
-  session: "cyf.native.session.v1",
+  session: "cyf.native.session.v2",
   records: "cyf.native.records.v1",
   plots: "cyf.native.plots.v1",
   demoSeeded: "cyf.native.demo-seeded.v1",
@@ -24,8 +24,9 @@ export async function loadSnapshot(): Promise<AppSnapshot> {
     AsyncStorage.getItem(KEYS.records),
     AsyncStorage.getItem(KEYS.plots),
   ]);
+  const savedSession = parseJson<Session | null>(session, null);
   return {
-    session: parseJson<Session | null>(session, null),
+    session: savedSession ? { ...savedSession, role: savedSession.role || "inspection" } : null,
     records: parseJson<InspectionRecord[]>(records, []),
     plots: parseJson<Plot[]>(plots, []),
   };

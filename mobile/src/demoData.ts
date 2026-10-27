@@ -2,9 +2,9 @@ import { Image } from "react-native";
 import type { Detection, InspectionRecord, Plot } from "./types";
 
 const imageUris = [
-  Image.resolveAssetSource(require("../assets/demo-inspection-1.png")).uri,
-  Image.resolveAssetSource(require("../assets/demo-inspection-2.png")).uri,
-  Image.resolveAssetSource(require("../assets/demo-inspection-3.png")).uri,
+  Image.resolveAssetSource(require("../assets/demo-inspection-1.png"))!.uri,
+  Image.resolveAssetSource(require("../assets/demo-inspection-2.png"))!.uri,
+  Image.resolveAssetSource(require("../assets/demo-inspection-3.png"))!.uri,
 ];
 
 const demoPlots: Plot[] = [
