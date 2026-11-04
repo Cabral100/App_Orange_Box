@@ -3,39 +3,40 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { TabId, UserRole } from "../types";
 import { colors, fonts, radii, shadow } from "../theme";
 
-const tabs: { id: TabId; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }[] = [
-  { id: "map", label: "Mapa", icon: "map-outline" },
-  { id: "history", label: "Histórico", icon: "history" },
-  { id: "camera", label: "Câmera", icon: "camera-outline" },
-  { id: "dashboard", label: "Relatórios", icon: "chart-pie" },
-  { id: "account", label: "Conta", icon: "account-outline" },
-];
+type Tab = { id: TabId; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap };
+
+const mapTab: Tab = { id: "map", label: "Mapa", icon: "map-outline" };
+const historyTab: Tab = { id: "history", label: "Histórico", icon: "history" };
+const cameraTab: Tab = { id: "camera", label: "Câmera", icon: "camera-outline" };
+const dashboardTab: Tab = { id: "dashboard", label: "Relatórios", icon: "chart-pie" };
+const accountTab: Tab = { id: "account", label: "Conta", icon: "account-outline" };
 
 export function BottomNav({ active, onChange, role }: { active: TabId; onChange: (tab: TabId) => void; role: UserRole }) {
-  const visibleTabs = role === "admin" ? tabs : tabs.filter((tab) => tab.id !== "dashboard");
+  const leftTabs = [mapTab, historyTab];
+  const rightTabs = role === "admin" ? [dashboardTab, accountTab] : [accountTab];
   return (
     <View style={styles.shell} accessibilityRole="tablist">
-      {visibleTabs.map((tab) => {
-        const selected = tab.id === active;
-        const camera = tab.id === "camera";
-        return (
-          <Pressable
-            key={tab.id}
-            accessibilityRole="tab"
-            accessibilityState={{ selected }}
-            accessibilityLabel={tab.label}
-            onPress={() => onChange(tab.id)}
-            style={({ pressed }) => [styles.item, camera && styles.cameraItem, selected && !camera && styles.selected, pressed && styles.pressed]}
-          >
-            <View style={camera ? [styles.cameraButton, selected && styles.cameraButtonActive] : undefined}>
-              <MaterialCommunityIcons name={tab.icon} size={camera ? 30 : 24} color={camera ? colors.white : selected ? colors.green : colors.muted} />
-            </View>
-            <Text style={[styles.label, selected && styles.selectedLabel, camera && styles.cameraLabel]}>{tab.label}</Text>
-          </Pressable>
-        );
-      })}
+      <View style={styles.side}>{leftTabs.map((tab) => <NavItem key={tab.id} tab={tab} active={active} onChange={onChange} />)}</View>
+      <NavItem tab={cameraTab} active={active} onChange={onChange} camera />
+      <View style={styles.side}>{rightTabs.map((tab) => <NavItem key={tab.id} tab={tab} active={active} onChange={onChange} />)}</View>
     </View>
   );
+}
+
+function NavItem({ tab, active, onChange, camera = false }: { tab: Tab; active: TabId; onChange: (tab: TabId) => void; camera?: boolean }) {
+  const selected = tab.id === active;
+  return <Pressable
+    accessibilityRole="tab"
+    accessibilityState={{ selected }}
+    accessibilityLabel={tab.label}
+    onPress={() => onChange(tab.id)}
+    style={({ pressed }) => [styles.item, camera && styles.cameraItem, selected && !camera && styles.selected, pressed && styles.pressed]}
+  >
+    <View style={camera ? [styles.cameraButton, selected && styles.cameraButtonActive] : undefined}>
+      <MaterialCommunityIcons name={tab.icon} size={camera ? 34 : 24} color={camera ? colors.white : selected ? colors.green : colors.muted} />
+    </View>
+    <Text style={[styles.label, selected && styles.selectedLabel, camera && styles.cameraLabel]}>{tab.label}</Text>
+  </Pressable>;
 }
 
 const styles = StyleSheet.create({
@@ -45,9 +46,10 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.96)", borderRadius: radii.large,
     borderWidth: 1, borderColor: "rgba(255,255,255,0.75)", ...shadow,
   },
-  item: { flex: 1, height: 62, alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 22 },
-  cameraItem: { transform: [{ translateY: -15 }], overflow: "visible" },
-  cameraButton: { width: 58, height: 58, borderRadius: 29, alignItems: "center", justifyContent: "center", backgroundColor: colors.orange, ...shadow },
+  side: { flex: 1, height: 62, flexDirection: "row", alignItems: "center", justifyContent: "center" },
+  item: { flex: 1, minWidth: 54, height: 62, alignItems: "center", justifyContent: "center", gap: 3, borderRadius: 22 },
+  cameraItem: { flex: 0, width: 76, transform: [{ translateY: -18 }], overflow: "visible" },
+  cameraButton: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", backgroundColor: colors.orange, ...shadow },
   cameraButtonActive: { backgroundColor: colors.green },
   selected: { backgroundColor: colors.white },
   pressed: { opacity: 0.72 },

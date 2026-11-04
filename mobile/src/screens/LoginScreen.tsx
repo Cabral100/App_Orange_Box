@@ -8,7 +8,7 @@ import { colors, fonts, radii, shadow } from "../theme";
 
 const TEST_ACCOUNTS: Record<UserRole, { user: string; password: string; name: string; email: string }> = {
   inspection: { user: "inspecao", password: "campo123", name: "Marcos Oliveira", email: "inspecao@cyf.app" },
-  admin: { user: "admin", password: "admin123", name: "Lucas Cabral", email: "admin@cyf.app" },
+  admin: { user: "admin", password: "admin123", name: "Fernanda Almeida", email: "fernanda.almeida@cyf.app" },
 };
 
 export function LoginScreen({ onLogin }: { onLogin: (session: Session) => void }) {

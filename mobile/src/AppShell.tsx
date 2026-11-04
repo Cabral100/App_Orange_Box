@@ -43,15 +43,23 @@ export function AppShell({ analyzer, prepareAnalyzer, demoMode = false }: Props)
 
   useEffect(() => {
     loadSnapshot().then((snapshot) => demoMode ? seedDemoSnapshot(snapshot, getDemoPlots(), getDemoRecords()) : snapshot).then(async (snapshot) => {
-      const normalizedSession = snapshot.session ? { ...snapshot.session, role: snapshot.session.role || "inspection" as const } : null;
+      let normalizedSession = snapshot.session ? { ...snapshot.session, role: snapshot.session.role || "inspection" as const } : null;
+      if (demoMode && normalizedSession?.role === "admin") normalizedSession = { ...normalizedSession, name: "Fernanda Almeida", email: "fernanda.almeida@cyf.app" };
+      if (demoMode && normalizedSession?.role === "inspection") normalizedSession = { ...normalizedSession, name: "Marcos Oliveira", email: "inspecao@cyf.app" };
       if (normalizedSession !== snapshot.session) await saveSession(normalizedSession);
-      setSession(normalizedSession); setRecords(snapshot.records); setPlots(snapshot.plots); setLoaded(true);
+      setSession(normalizedSession);
+      if (normalizedSession?.role === "admin") setActiveTab("dashboard");
+      setRecords(snapshot.records); setPlots(snapshot.plots); setLoaded(true);
     }).catch(() => setLoaded(true));
   }, [demoMode]);
 
   const resultPlot = useMemo(() => resultRecord ? findPlot(plots, resultRecord.location) : null, [plots, resultRecord]);
 
-  async function login(nextSession: Session) { setSession(nextSession); setActiveTab("camera"); await saveSession(nextSession); }
+  async function login(nextSession: Session) {
+    setSession(nextSession);
+    setActiveTab(nextSession.role === "admin" ? "dashboard" : "camera");
+    await saveSession(nextSession);
+  }
   async function logout() { setSession(null); setActiveTab("camera"); await saveSession(null); }
   async function updatePlots(nextPlots: Plot[]) { setPlots(nextPlots); await savePlots(nextPlots); }
 

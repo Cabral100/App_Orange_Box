@@ -47,13 +47,24 @@ export function savePlots(plots: Plot[]) {
 }
 
 export async function seedDemoSnapshot(snapshot: AppSnapshot, demoPlots: Plot[], demoRecords: InspectionRecord[]): Promise<AppSnapshot> {
-  const alreadySeeded = await AsyncStorage.getItem(KEYS.demoSeeded);
-  if (alreadySeeded) return snapshot;
-
-  const plotIds = new Set(snapshot.plots.map((plot) => plot.id));
-  const recordIds = new Set(snapshot.records.map((record) => record.id));
-  const plots = [...snapshot.plots, ...demoPlots.filter((plot) => !plotIds.has(plot.id))];
-  const records = [...demoRecords.filter((record) => !recordIds.has(record.id)), ...snapshot.records];
+  const savedPlots = new Map(snapshot.plots.map((plot) => [plot.id, plot]));
+  const savedRecords = new Map(snapshot.records.map((record) => [record.id, record]));
+  const demoPlotIds = new Set(demoPlots.map((plot) => plot.id));
+  const demoRecordIds = new Set(demoRecords.map((record) => record.id));
+  const plots = [
+    ...demoPlots.map((plot) => {
+      const saved = savedPlots.get(plot.id);
+      return { ...plot, sprayStatus: saved?.sprayStatus || plot.sprayStatus, sprayScheduledAt: saved?.sprayScheduledAt || plot.sprayScheduledAt, lastSprayedAt: saved?.lastSprayedAt || plot.lastSprayedAt };
+    }),
+    ...snapshot.plots.filter((plot) => !demoPlotIds.has(plot.id)),
+  ];
+  const records = [
+    ...demoRecords.map((record) => {
+      const saved = savedRecords.get(record.id);
+      return { ...record, plotId: saved?.plotId ?? record.plotId, mapVisible: saved?.mapVisible ?? record.mapVisible, imageUri: record.imageUri };
+    }),
+    ...snapshot.records.filter((record) => !demoRecordIds.has(record.id)),
+  ];
   await AsyncStorage.multiSet([
     [KEYS.plots, JSON.stringify(plots)],
     [KEYS.records, JSON.stringify(records)],

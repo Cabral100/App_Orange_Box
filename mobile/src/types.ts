@@ -67,12 +67,35 @@ export type MultiPolygonGeometry = {
   coordinates: number[][][][];
 };
 
+export type SprayApplication = {
+  product: string;
+  category: "Acaricida" | "Inseticida" | "Fungicida";
+  target: string;
+  appliedAt: string;
+  reentryHours: number;
+  harvestIntervalDays: number;
+  nextInspectionDays: number;
+};
+
+export type TrapMonitoring = {
+  pest: "Furão";
+  metric: "Índice" | "Volume";
+  captured: number;
+  traps: number;
+  checkedAt: string;
+};
+
 export type Plot = {
   id: string;
   name: string;
   geometry: PolygonGeometry | MultiPolygonGeometry;
   createdAt: string;
   source: "drawn" | "geojson" | "estimated";
+  sprayStatus?: "scheduled" | "completed";
+  sprayScheduledAt?: string;
+  lastSprayedAt?: string;
+  sprayApplication?: SprayApplication;
+  trapMonitoring?: TrapMonitoring;
 };
 
 export type UserRole = "admin" | "inspection";
