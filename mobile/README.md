@@ -99,9 +99,40 @@ npx eas-cli build --platform android --profile development
 npm start -- --dev-client
 ```
 
-## iPhone
+## iPhone com UltralyticsYOLO e a interface CYF
 
-Uma compilação iOS exige macOS/Xcode localmente ou EAS Build com conta Apple. O código é compartilhado, mas a instalação em iPhone precisa da assinatura da Apple.
+O iOS usa um **Expo Module local em Swift** (`modules/cyf-ultralytics`). Esse módulo incorpora a `YOLOView` oficial, desliga a interface visual padrão da Ultralytics e envia caixas, classes e confiança para a tela React Native. Assim, câmera, barra de 95%, instruções, galeria e botões continuam com o desenho do CYF, enquanto os quadros da câmera são processados em tempo real por **UltralyticsYOLO + Core ML**.
+
+No Mac, a partir da raiz do repositório:
+
+```bash
+chmod +x scripts/setup-ios-ultralytics.sh
+./scripts/setup-ios-ultralytics.sh
+open mobile/ios/CYF.xcworkspace
+```
+
+O script:
+
+1. cria um ambiente Python separado;
+2. exporta `backend/models/best.pt` para `mobile/assets/models/best.mlpackage` em 640×640;
+3. gera o projeto iOS com o Expo Prebuild;
+4. instala `UltralyticsYOLO ~> 8.9` pelo CocoaPods;
+5. adiciona automaticamente o `best.mlpackage` ao target iOS.
+
+No Xcode, escolha o iPhone físico, configure o Team em **Signing & Capabilities** e execute `⌘R`. Abra sempre `CYF.xcworkspace`, não o arquivo `.xcodeproj`.
+
+Depois de alterar Swift, pods ou o modelo Core ML, gere uma nova compilação nativa. Atualizações JavaScript isoladas não adicionam código nativo a um app já instalado.
+
+### Comportamento por plataforma
+
+- **iPhone Development Build/Xcode:** câmera Ultralytics em tempo real com o `best.mlpackage`.
+- **Galeria e fallback nativo:** continuam usando o mesmo modelo treinado exportado para ONNX.
+- **Expo Go:** mantém a demonstração visual, porque o cliente genérico não contém o módulo Swift nem o SDK Ultralytics.
+- **Android:** continua usando `onnxruntime-react-native`; a ponte Ultralytics deste projeto é específica para iOS.
+
+### Licença
+
+O pacote oficial `UltralyticsYOLO` é distribuído sob AGPL-3.0. Antes de distribuir comercialmente o aplicativo, valide as obrigações dessa licença ou obtenha a licença empresarial adequada da Ultralytics.
 
 ## Verificação rápida
 

@@ -37,6 +37,12 @@
       "expo-sharing",
       "expo-status-bar",
       [
+        "./plugins/withUltralyticsModel",
+        {
+          "modelPath": "assets/models/best.mlpackage"
+        }
+      ],
+      [
         "expo-camera",
         {
           "cameraPermission": "Permita que o CYF use a câmera para inspecionar as laranjas.",

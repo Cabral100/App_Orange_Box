@@ -3,7 +3,8 @@ import { CameraView, useCameraPermissions } from "expo-camera";
 import * as ImagePicker from "expo-image-picker";
 import * as Location from "expo-location";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Dimensions, Modal, Pressable, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Dimensions, Modal, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { CyfUltralyticsView, isCyfUltralyticsAvailable, type CyfUltralyticsViewRef, type UltralyticsDetectionPayload } from "../../modules/cyf-ultralytics";
 import { CONFIRMED_THRESHOLD } from "../analytics";
 import { findPlot } from "../geo";
 import { persistInspectionImage } from "../storage";
@@ -61,6 +62,7 @@ function exifNumber(value: unknown): number {
 
 export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prepareAnalyzer, demoMode = false }: Props) {
   const cameraRef = useRef<CameraView>(null);
+  const yoloCameraRef = useRef<CyfUltralyticsViewRef>(null);
   const inFlightRef = useRef(false);
   const armedRef = useRef(true);
   const [permission, requestPermission] = useCameraPermissions();
@@ -73,10 +75,16 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
   const [success, setSuccess] = useState(false);
   const [help, setHelp] = useState(false);
   const [message, setMessage] = useState("Aponte para a superfície da laranja");
+  const [nativeFailed, setNativeFailed] = useState(false);
+  const useNativeYolo = Platform.OS === "ios" && isCyfUltralyticsAvailable && !demoMode && !nativeFailed;
 
   useEffect(() => {
+    if (useNativeYolo) {
+      setMessage("Carregando modelo Ultralytics no iPhone…");
+      return;
+    }
     prepareAnalyzer().then(() => setModelReady(true)).catch((error) => setMessage(error instanceof Error ? error.message : "Não foi possível abrir a análise offline."));
-  }, [prepareAnalyzer]);
+  }, [prepareAnalyzer, useNativeYolo]);
 
   useEffect(() => {
     let subscription: Location.LocationSubscription | undefined;
@@ -126,6 +134,25 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
     setSuccess(false);
   }, [demoMode, onCaptured, plots]);
 
+  const receiveNativeDetection = useCallback((payload: UltralyticsDetectionPayload) => {
+    const detections = [...payload.detections].sort((first, second) => second.confidence - first.confidence);
+    setAnalysis({
+      status: detections.length ? "detected" : "no_detection",
+      detections,
+      detection_count: detections.length,
+      confidence_threshold: 0.01,
+      inference_ms: payload.inferenceMs,
+      latency_ms: payload.inferenceMs,
+      quality: {
+        status: "adequate",
+        warnings: [],
+        metrics: { width: payload.width || 640, height: payload.height || 640, brightness: 0, contrast: 0 },
+      },
+      location: null,
+    });
+    setMessage(payload.topConfidence >= CONFIRMED_THRESHOLD ? "Boa distância — mantenha firme" : payload.topConfidence > 0 ? "Aproxime-se da praga e mantenha firme" : "Aponte e aproxime-se da praga");
+  }, []);
+
   const analyzePhoto = useCallback(async (
     photo: { uri: string; width: number; height: number },
     options: { manual: boolean; source: "camera" | "gallery"; captureLocation: Coordinates | null },
@@ -166,10 +193,53 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
   }, [analyzer, resolveCurrentLocation, storeAnalysis]);
 
   const capture = useCallback(async (manual: boolean) => {
-    if (!cameraRef.current || !ready || !modelReady || inFlightRef.current) return;
+    if (!ready || !modelReady || inFlightRef.current) return;
+    if (useNativeYolo) {
+      if (!yoloCameraRef.current || (!manual && confidence < CONFIRMED_THRESHOLD)) return;
+      inFlightRef.current = true;
+      if (manual) setWorking(true);
+      try {
+        const photo = await yoloCameraRef.current.capturePhoto();
+        const detections = [...photo.detections].sort((first, second) => second.confidence - first.confidence);
+        const best = detections[0]?.confidence || 0;
+        if (best > 0 && best < CONFIRMED_THRESHOLD) {
+          armedRef.current = true;
+          setMessage("Confiança baixa — aproxime-se da praga e mantenha firme");
+          return;
+        }
+        if (!manual && !armedRef.current) return;
+        armedRef.current = false;
+        const captureLocation = await resolveCurrentLocation();
+        if (!captureLocation) {
+          armedRef.current = true;
+          setMessage("Ative a localização para registrar as coordenadas da foto");
+          if (manual) Alert.alert("Localização necessária", "Ative a localização precisa para salvar a inspeção no ponto correto do mapa.");
+          return;
+        }
+        const result: InferenceResult = {
+          status: detections.length ? "detected" : "no_detection",
+          detections,
+          detection_count: detections.length,
+          confidence_threshold: 0.01,
+          inference_ms: 0,
+          latency_ms: 0,
+          quality: { status: "adequate", warnings: [], metrics: { width: photo.width, height: photo.height, brightness: 0, contrast: 0 } },
+          location: null,
+        };
+        await storeAnalysis(photo.uri, result, "camera", captureLocation);
+      } catch (error) {
+        armedRef.current = true;
+        setMessage(error instanceof Error ? error.message : "Falha ao capturar com Ultralytics.");
+      } finally {
+        inFlightRef.current = false;
+        setWorking(false);
+      }
+      return;
+    }
+    if (!cameraRef.current) return;
     const photo = await cameraRef.current.takePictureAsync({ quality: manual ? 0.9 : 0.55, skipProcessing: false });
     if (photo) await analyzePhoto(photo, { manual, source: "camera", captureLocation: location });
-  }, [analyzePhoto, location, modelReady, ready]);
+  }, [analyzePhoto, confidence, location, modelReady, ready, resolveCurrentLocation, storeAnalysis, useNativeYolo]);
 
   useEffect(() => {
     if (demoMode || !active || !ready || !modelReady || success) return undefined;
@@ -209,7 +279,17 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
 
   return (
     <View style={styles.page}>
-      <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" active={active} enableTorch={torch} autofocus="on" onCameraReady={() => setReady(true)} onMountError={(event) => setMessage(event.message)} />
+      {useNativeYolo ? <CyfUltralyticsView
+        ref={yoloCameraRef}
+        style={StyleSheet.absoluteFill}
+        modelName="best"
+        active={active}
+        torch={torch}
+        confidenceThreshold={0.01}
+        onReady={(event) => { setReady(true); setModelReady(true); setMessage(`${event.nativeEvent.runtime} pronto`); }}
+        onDetection={(event) => receiveNativeDetection(event.nativeEvent)}
+        onError={(event) => { setNativeFailed(true); setReady(false); setModelReady(false); setMessage(`${event.nativeEvent.message} Usando câmera compatível.`); }}
+      /> : <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" active={active} enableTorch={torch} autofocus="on" onCameraReady={() => setReady(true)} onMountError={(event) => setMessage(event.message)} />}
       <View style={styles.shade} pointerEvents="none" />
 
       <View style={styles.topLeftActions}>
@@ -251,7 +331,7 @@ export function CameraScreen({ plots, active, onBack, onCaptured, analyzer, prep
           <HelpRow icon="fruit-citrus" title="Aproxime a laranja" copy="Centralize a casca dentro das quatro marcas brancas." />
           <HelpRow icon="motion-sensor" title="Aguarde o sinal" copy="A barra cresce conforme a confiança aumenta. Com 95% ou mais, a foto é salva." />
           <HelpRow icon="map-marker-radius" title="Confirme o talhão" copy="Depois da foto, desenhe o limite ou informe a área em metros quadrados." />
-          <View style={styles.helpNote}><MaterialCommunityIcons name="cloud-off-outline" size={18} color={colors.green} /><Text style={styles.helpNoteText}>Câmera e registros funcionam offline. Nesta versão Expo Go, a detecção é demonstrativa.</Text></View>
+          <View style={styles.helpNote}><MaterialCommunityIcons name="cloud-off-outline" size={18} color={colors.green} /><Text style={styles.helpNoteText}>{useNativeYolo ? "A câmera usa UltralyticsYOLO + Core ML em tempo real e funciona offline no iPhone." : "Câmera e registros funcionam offline. No Expo Go, a detecção permanece demonstrativa."}</Text></View>
           <Pressable onPress={() => setHelp(false)} style={styles.helpButton}><Text style={styles.helpButtonText}>Entendi</Text></Pressable>
         </View></View>
       </Modal>
