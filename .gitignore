@@ -16,6 +16,7 @@ exports/
 *.onnx
 *.tflite
 *.torchscript
+*.mlpackage/
 *.log
 .DS_Store
 Thumbs.db
