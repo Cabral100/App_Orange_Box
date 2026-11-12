@@ -1,6 +1,14 @@
 # CYF — Clean Your Farm
 
-> **Aplicativo principal atual:** a versão 100% mobile e offline está em [`mobile/`](mobile/README.md). Ela usa React Native + Expo Development Build/APK, câmera nativa e o modelo ONNX embarcado; não é uma tela web e não depende do backend para inferência. O conteúdo abaixo documenta a PWA anterior, preservada apenas como legado e apoio de desenvolvimento.
+> **Aplicativo principal atual:** a versão iOS nativa está em [`ios-native/`](ios-native/README.md). Ela usa SwiftUI, MapKit, Core Location, Swift Charts e o pacote oficial UltralyticsYOLO/Core ML. Não depende de Expo, React Native, Node, Metro ou CocoaPods para compilar e executar no iPhone.
+
+Para preparar no Mac e abrir diretamente no Xcode:
+
+```bash
+bash scripts/setup-native-ios.sh
+```
+
+> A implementação anterior em [`mobile/`](mobile/README.md) permanece temporariamente como referência visual e caminho Android. Ela não é necessária para executar o aplicativo nativo.
 
 Aplicativo React/PWA mobile para triagem experimental de ácaros em citros. O CYF analisa a câmera com o checkpoint `best.pt`, salva fotos com **confiança do modelo ≥ 95%**, registra GPS/EXIF, associa cada ocorrência ao polígono de um talhão e colore o mapa conforme a quantidade de detecções no período.
 

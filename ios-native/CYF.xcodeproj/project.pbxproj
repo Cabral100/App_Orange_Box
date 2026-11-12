@@ -1,0 +1,108 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		A10000000000000000000011 /* UltralyticsYOLO in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000010 /* UltralyticsYOLO */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		A10000000000000000000002 /* CYF.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CYF.app; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		A10000000000000000000003 /* CYF */ = {isa = PBXFileSystemSynchronizedRootGroup; path = CYF; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		A10000000000000000000004 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (A10000000000000000000011 /* UltralyticsYOLO in Frameworks */,);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		A10000000000000000000005 = {
+			isa = PBXGroup;
+			children = (A10000000000000000000003 /* CYF */, A10000000000000000000006 /* Products */,);
+			sourceTree = "<group>";
+		};
+		A10000000000000000000006 /* Products */ = {
+			isa = PBXGroup;
+			children = (A10000000000000000000002 /* CYF.app */,);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		A10000000000000000000001 /* CYF */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A1000000000000000000000D /* Build configuration list for PBXNativeTarget "CYF" */;
+			buildPhases = (A10000000000000000000007 /* Sources */, A10000000000000000000004 /* Frameworks */, A10000000000000000000008 /* Resources */,);
+			buildRules = ();
+			dependencies = ();
+			fileSystemSynchronizedGroups = (A10000000000000000000003 /* CYF */,);
+			name = CYF;
+			packageProductDependencies = (A10000000000000000000010 /* UltralyticsYOLO */,);
+			productName = CYF;
+			productReference = A10000000000000000000002 /* CYF.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A10000000000000000000009 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {BuildIndependentTargetsInParallel = 1; LastSwiftUpdateCheck = 2640; LastUpgradeCheck = 2640; TargetAttributes = {A10000000000000000000001 = {CreatedOnToolsVersion = 26.4;};};};
+			buildConfigurationList = A1000000000000000000000C /* Build configuration list for PBXProject "CYF" */;
+			compatibilityVersion = "Xcode 16.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (en, Base, pt,);
+			mainGroup = A10000000000000000000005;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (A1000000000000000000000F /* XCRemoteSwiftPackageReference "yolo-ios-app" */,);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = A10000000000000000000006 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (A10000000000000000000001 /* CYF */,);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A10000000000000000000008 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		A10000000000000000000007 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		A10000000000000000000012 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ANALYZER_NONNULL = YES; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_BOOL_CONVERSION = YES; CLANG_WARN_CONSTANT_CONVERSION = YES; CLANG_WARN_DOCUMENTATION_COMMENTS = YES; CLANG_WARN_EMPTY_BODY = YES; CLANG_WARN_ENUM_CONVERSION = YES; CLANG_WARN_INFINITE_RECURSION = YES; CLANG_WARN_INT_CONVERSION = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES; CLANG_WARN_RANGE_LOOP_ANALYSIS = YES; CLANG_WARN_STRICT_PROTOTYPES = YES; CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE; CLANG_WARN_UNREACHABLE_CODE = YES; COPY_PHASE_STRIP = NO; DEBUG_INFORMATION_FORMAT = dwarf; ENABLE_TESTABILITY = YES; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_NO_COMMON_BLOCKS = YES; GCC_OPTIMIZATION_LEVEL = 0; GCC_PREPROCESSOR_DEFINITIONS = ("DEBUG=1", "$(inherited)",); IPHONEOS_DEPLOYMENT_TARGET = 17.0; MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE; ONLY_ACTIVE_ARCH = YES; SDKROOT = iphoneos; SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)"; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; }; name = Debug; };
+		A10000000000000000000013 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ALWAYS_SEARCH_USER_PATHS = NO; CLANG_ANALYZER_NONNULL = YES; CLANG_ENABLE_MODULES = YES; CLANG_ENABLE_OBJC_ARC = YES; CLANG_WARN_BOOL_CONVERSION = YES; CLANG_WARN_CONSTANT_CONVERSION = YES; CLANG_WARN_DOCUMENTATION_COMMENTS = YES; CLANG_WARN_EMPTY_BODY = YES; CLANG_WARN_ENUM_CONVERSION = YES; CLANG_WARN_INFINITE_RECURSION = YES; CLANG_WARN_INT_CONVERSION = YES; CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES; CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES; CLANG_WARN_RANGE_LOOP_ANALYSIS = YES; CLANG_WARN_STRICT_PROTOTYPES = YES; CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE; CLANG_WARN_UNREACHABLE_CODE = YES; COPY_PHASE_STRIP = YES; DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym"; ENABLE_NS_ASSERTIONS = NO; GCC_C_LANGUAGE_STANDARD = gnu17; GCC_NO_COMMON_BLOCKS = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MTL_ENABLE_DEBUG_INFO = NO; SDKROOT = iphoneos; SWIFT_COMPILATION_MODE = wholemodule; VALIDATE_PRODUCT = YES; }; name = Release; };
+		A10000000000000000000014 /* Debug */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = CYF; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity"; INFOPLIST_KEY_NSCameraUsageDescription = "O CYF usa a câmera para detectar pragas em laranjas no campo."; INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "O CYF usa sua localização para associar a vistoria ao talhão correto."; INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "O CYF permite selecionar fotos para análise local."; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 2.0.0; PRODUCT_BUNDLE_IDENTIFIER = "br.com.cleanyourfarm.cyf"; PRODUCT_NAME = "$(TARGET_NAME)"; STRINGS_FILE_OUTPUT_ENCODING = binary; SUPPORTS_MACCATALYST = NO; SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = minimal; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Debug; };
+		A10000000000000000000015 /* Release */ = {isa = XCBuildConfiguration; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; DEVELOPMENT_TEAM = ""; ENABLE_PREVIEWS = YES; GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_CFBundleDisplayName = CYF; INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity"; INFOPLIST_KEY_NSCameraUsageDescription = "O CYF usa a câmera para detectar pragas em laranjas no campo."; INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "O CYF usa sua localização para associar a vistoria ao talhão correto."; INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "O CYF permite selecionar fotos para análise local."; INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 2.0.0; PRODUCT_BUNDLE_IDENTIFIER = "br.com.cleanyourfarm.cyf"; PRODUCT_NAME = "$(TARGET_NAME)"; STRINGS_FILE_OUTPUT_ENCODING = binary; SUPPORTS_MACCATALYST = NO; SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = minimal; SWIFT_VERSION = 5.0; TARGETED_DEVICE_FAMILY = 1; }; name = Release; };
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		A1000000000000000000000C /* Build configuration list for PBXProject "CYF" */ = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000012 /* Debug */, A10000000000000000000013 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A1000000000000000000000D /* Build configuration list for PBXNativeTarget "CYF" */ = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000014 /* Debug */, A10000000000000000000015 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+/* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A1000000000000000000000F /* XCRemoteSwiftPackageReference "yolo-ios-app" */ = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/ultralytics/yolo-ios-app.git"; requirement = {kind = exactVersion; version = 8.9.23;};};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10000000000000000000010 /* UltralyticsYOLO */ = {isa = XCSwiftPackageProductDependency; package = A1000000000000000000000F /* XCRemoteSwiftPackageReference "yolo-ios-app" */; productName = UltralyticsYOLO;};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = A10000000000000000000009 /* Project object */;
+}

@@ -17,6 +17,10 @@ exports/
 *.tflite
 *.torchscript
 *.mlpackage/
+ios-native/DerivedData/
+ios-native/.swiftpm/
+ios-native/CYF.xcodeproj/project.xcworkspace/xcuserdata/
+ios-native/CYF.xcodeproj/xcuserdata/
 *.log
 .DS_Store
 Thumbs.db

@@ -43,11 +43,17 @@ def main() -> None:
     exported = model.export(**export_options)
     if args.format == "coreml":
         exported_path = Path(exported).resolve()
-        destination = Path("mobile/assets/models/best.mlpackage").resolve()
-        if destination.exists():
-            shutil.rmtree(destination)
-        shutil.copytree(exported_path, destination)
-        exported = destination
+        destinations = [
+            Path("mobile/assets/models/best.mlpackage").resolve(),
+            Path("ios-native/CYF/Models/best.mlpackage").resolve(),
+        ]
+        for destination in destinations:
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            if destination.exists():
+                shutil.rmtree(destination)
+            shutil.copytree(exported_path, destination)
+            print(f"Core ML copiado para: {destination}")
+        exported = destinations[-1]
     print(f"Exportado para: {exported}")
     print("Valide caixas, confiança, latência e consumo no hardware-alvo antes de uso em campo.")
 

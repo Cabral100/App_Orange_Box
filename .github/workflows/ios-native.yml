@@ -1,0 +1,28 @@
+name: iOS nativo
+
+on:
+  push:
+    branches:
+      - feat/ultralytics-native-camera
+  pull_request:
+    paths:
+      - "ios-native/**"
+      - ".github/workflows/ios-native.yml"
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Resolver UltralyticsYOLO
+        run: xcodebuild -resolvePackageDependencies -project ios-native/CYF.xcodeproj -scheme CYF
+      - name: Compilar para simulador
+        run: >-
+          xcodebuild
+          -project ios-native/CYF.xcodeproj
+          -scheme CYF
+          -sdk iphonesimulator
+          -destination 'generic/platform=iOS Simulator'
+          CODE_SIGNING_ALLOWED=NO
+          build
