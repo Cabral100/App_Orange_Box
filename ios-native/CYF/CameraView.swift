@@ -104,7 +104,13 @@ struct CameraScreen: View {
             let detections = try await GalleryAnalyzer.shared.analyze(image)
             let confidence = detections.first?.confidence ?? 0
             if confidence > 0 && confidence < 0.95 { alertMessage = "A detecção ficou abaixo de 95%. Escolha uma foto mais próxima da praga."; return }
-            guard let coordinate = ImageMetadata.exifCoordinate(from: data) ?? (await location.current()) else { alertMessage = "A foto não possui GPS/EXIF e a localização atual não está disponível."; return }
+            let coordinate: FieldCoordinate?
+            if let exifCoordinate = ImageMetadata.exifCoordinate(from: data) {
+                coordinate = exifCoordinate
+            } else {
+                coordinate = await location.current()
+            }
+            guard let coordinate else { alertMessage = "A foto não possui GPS/EXIF e a localização atual não está disponível."; return }
             await persistCapture(image: image, detections: detections, coordinate: coordinate, source: "gallery")
         } catch { alertMessage = error.localizedDescription }
     }
