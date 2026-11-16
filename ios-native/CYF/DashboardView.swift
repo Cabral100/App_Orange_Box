@@ -45,6 +45,7 @@ struct DashboardScreen: View {
                         KPI(value: reentryBlocked.count, label: "reentrada bloqueada")
                         KPI(value: dueInspections.count, label: "reinspeções vencidas")
                     }
+                    if !priorityPlots.isEmpty || !reentryBlocked.isEmpty || !dueInspections.isEmpty { prioritySection }
                     if includePests { pestSection }
                     if includeSprays { spraySection }
                     if includeTraps { trapSection }
@@ -75,13 +76,20 @@ struct DashboardScreen: View {
 
     private var pestSection: some View {
         VStack(alignment: .leading, spacing: 13) {
-            CardTitle(title: "Detecções por talhão", subtitle: "Contagem, inspeções e variação.", icon: "ladybug")
+            CardTitle(title: "Ocorrências por talhão", subtitle: "Volume atual, inspeções e tendência.", icon: "chart.bar.xaxis")
             if total > 0 {
                 Chart(rows.filter { $0.count > 0 }) { row in
-                    SectorMark(angle: .value("Detecções", row.count), innerRadius: .ratio(0.58), angularInset: 1.4)
-                        .foregroundStyle(by: .value("Talhão", row.plot.name))
-                        .cornerRadius(3)
-                }.chartLegend(.hidden).frame(height: 210).overlay { VStack { Text("\(total)").font(.title.bold()); Text("DETECÇÕES").font(.caption2.bold()).foregroundStyle(CYFColor.muted) } }
+                    BarMark(
+                        x: .value("Ocorrências", row.count),
+                        y: .value("Talhão", row.plot.name)
+                    )
+                    .foregroundStyle(severityColor(row.count))
+                    .cornerRadius(4)
+                    .annotation(position: .trailing) { Text("\(row.count)").font(.caption2.monospacedDigit().bold()).foregroundStyle(CYFColor.ink) }
+                }
+                .chartLegend(.hidden)
+                .chartXAxis { AxisMarks(position: .bottom) }
+                .frame(height: CGFloat(max(130, min(6, rows.filter { $0.count > 0 }.count) * 42)))
             }
             ForEach(visibleRows) { row in
                 HStack(spacing: 10) {
@@ -92,6 +100,32 @@ struct DashboardScreen: View {
             }
             if rows.count > 4 { Button(expanded ? "Reduzir extrato" : "Aumentar visão do extrato") { withAnimation { expanded.toggle() } }.font(.subheadline.bold()).frame(maxWidth: .infinity) }
         }.padding(17).cyfCard()
+    }
+
+    private var prioritySection: some View {
+        VStack(alignment: .leading, spacing: 11) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Prioridades de hoje").font(.headline)
+                    Text("Itens que pedem atenção primeiro.").font(.caption).foregroundStyle(CYFColor.muted)
+                }
+                Spacer()
+                Button("Ver mapa") { store.selectedTab = .map }.font(.caption.bold())
+            }
+            ForEach(priorityItems.prefix(4)) { item in
+                HStack(spacing: 10) {
+                    Circle().fill(item.color).frame(width: 9, height: 9)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(item.title).font(.subheadline.bold()).lineLimit(1)
+                        Text(item.detail).font(.caption).foregroundStyle(CYFColor.muted).lineLimit(1)
+                    }
+                    Spacer()
+                }
+                if item.id != priorityItems.prefix(4).last?.id { Divider() }
+            }
+        }
+        .padding(17)
+        .cyfCard()
     }
 
     private var spraySection: some View {
@@ -125,9 +159,23 @@ struct DashboardScreen: View {
     private var trapPlots: [Plot] { store.plots.filter { $0.trapMonitoring != nil && (selectedPlotID == nil || $0.id == selectedPlotID) } }
     private var reentryBlocked: [Plot] { sprayPlots.filter { plot in guard let spray = plot.sprayApplication else { return false }; return Calendar.current.date(byAdding: .hour, value: spray.reentryHours, to: spray.appliedAt)! > Date() } }
     private var dueInspections: [Plot] { sprayPlots.filter { plot in guard let spray = plot.sprayApplication else { return false }; return Calendar.current.date(byAdding: .day, value: spray.nextInspectionDays, to: spray.appliedAt)! <= Date() } }
+    private var priorityPlots: [DashboardRow] { rows.filter { $0.count > 20 } }
+    private var priorityItems: [ReportPriority] {
+        let critical = priorityPlots.map { ReportPriority(id: "critical-\($0.id)", title: $0.plot.name, detail: "\($0.count) ocorrências · talhão crítico", color: CYFColor.red) }
+        let reentry = reentryBlocked.map { ReportPriority(id: "reentry-\($0.id)", title: $0.name, detail: "Reentrada ainda bloqueada", color: CYFColor.orange) }
+        let inspections = dueInspections.map { ReportPriority(id: "inspection-\($0.id)", title: $0.name, detail: "Reinspeção vencida", color: CYFColor.yellow) }
+        return critical + reentry + inspections
+    }
     private func severityColor(_ count: Int) -> Color { count == 0 ? CYFColor.green : count <= 20 ? CYFColor.yellow : CYFColor.red }
     private func severityLabel(_ count: Int) -> String { count == 0 ? "Sem ocorrência" : count <= 20 ? "Atenção" : "Crítico" }
     private func exportPDF() { do { reportURL = try PDFReportService.generate(records: filteredRecords, plots: store.plots, rows: rows, from: range.0, to: range.1, imageURL: store.imageURL) } catch { reportError = error.localizedDescription } }
+}
+
+private struct ReportPriority: Identifiable {
+    let id: String
+    let title: String
+    let detail: String
+    let color: Color
 }
 
 private struct KPI: View {

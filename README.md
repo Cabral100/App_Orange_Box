@@ -8,9 +8,15 @@ Para preparar no Mac e abrir diretamente no Xcode:
 bash scripts/setup-native-ios.sh
 ```
 
+Para instalar e testar em outro MacBook/iPhone, envie o [guia rápido em PDF para a fazenda parceira](docs/GUIA_RAPIDO_CYF_IPHONE.pdf).
+
+Na versão iOS nativa, a captura manual é liberada com **85% de confiança** e a câmera dispara automaticamente ao atingir **90%**. O mapa usa camadas de calor por ocorrência, e o relatório preserva inspeções, tendências, pulverizações, carências, armadilhas e exportação em PDF.
+
 > A implementação anterior em [`mobile/`](mobile/README.md) permanece temporariamente como referência visual e caminho Android. Ela não é necessária para executar o aplicativo nativo.
 
-Aplicativo React/PWA mobile para triagem experimental de ácaros em citros. O CYF analisa a câmera com o checkpoint `best.pt`, salva fotos com **confiança do modelo ≥ 95%**, registra GPS/EXIF, associa cada ocorrência ao polígono de um talhão e colore o mapa conforme a quantidade de detecções no período.
+As seções abaixo também documentam a implementação React/PWA anterior, que mantém suas próprias regras legadas.
+
+O aplicativo web analisa a câmera com o checkpoint `best.pt`, salva fotos com **confiança do modelo ≥ 95%**, registra GPS/EXIF, associa cada ocorrência ao polígono de um talhão e colore o mapa conforme a quantidade de detecções no período.
 
 A interface usa padrões de câmera orientada à tarefa e mapa operacional em tela cheia inspirados em Plantix, Climate FieldView e OneSoil, sem copiar marcas ou ativos proprietários.
 

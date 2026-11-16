@@ -18,17 +18,75 @@ struct RootView: View {
     }
 
     private var appTabs: some View {
-        TabView(selection: $store.selectedTab) {
-            MapScreen().tag(AppTab.map).tabItem { Label("Mapa", systemImage: "map") }
-            HistoryScreen().tag(AppTab.history).tabItem { Label("Histórico", systemImage: "clock.arrow.circlepath") }
-            CameraScreen().tag(AppTab.camera).tabItem { Label("Câmera", systemImage: "camera.fill") }
-            if store.session?.role == .admin {
-                DashboardScreen().tag(AppTab.dashboard).tabItem { Label("Relatórios", systemImage: "chart.pie.fill") }
+        VStack(spacing: 0) {
+            TabView(selection: $store.selectedTab) {
+                MapScreen().tag(AppTab.map)
+                HistoryScreen().tag(AppTab.history)
+                CameraScreen().tag(AppTab.camera)
+                if store.session?.role == .admin {
+                    DashboardScreen().tag(AppTab.dashboard)
+                }
+                AccountScreen().tag(AppTab.account)
             }
-            AccountScreen().tag(AppTab.account).tabItem { Label("Conta", systemImage: "person.crop.circle") }
+            .toolbar(.hidden, for: .tabBar)
+            CYFBottomBar(selection: $store.selectedTab, isAdmin: store.session?.role == .admin)
         }
-        .toolbarBackground(.visible, for: .tabBar)
-        .toolbarBackground(Color.white, for: .tabBar)
+        .background(Color.white.ignoresSafeArea(edges: .bottom))
+    }
+}
+
+private struct CYFBottomBar: View {
+    @Binding var selection: AppTab
+    let isAdmin: Bool
+
+    var body: some View {
+        HStack(alignment: .bottom, spacing: 0) {
+            item(.map, title: "Mapa", icon: "map")
+            item(.history, title: "Histórico", icon: "clock.arrow.circlepath")
+            cameraButton
+            if isAdmin {
+                item(.dashboard, title: "Relatórios", icon: "chart.bar.xaxis")
+            } else {
+                Color.clear.frame(maxWidth: .infinity, minHeight: 50)
+            }
+            item(.account, title: "Conta", icon: "person.crop.circle")
+        }
+        .frame(height: 68)
+        .padding(.horizontal, 6)
+        .padding(.top, 4)
+        .background(Color.white.shadow(color: .black.opacity(0.10), radius: 12, y: -4))
+        .accessibilityElement(children: .contain)
+    }
+
+    private func item(_ tab: AppTab, title: String, icon: String) -> some View {
+        Button { selection = tab } label: {
+            VStack(spacing: 4) {
+                Image(systemName: icon).font(.system(size: 20, weight: selection == tab ? .bold : .medium))
+                Text(title).font(.system(size: 10, weight: selection == tab ? .bold : .medium)).lineLimit(1)
+            }
+            .foregroundStyle(selection == tab ? CYFColor.green : CYFColor.muted)
+            .frame(maxWidth: .infinity, minHeight: 50)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+    }
+
+    private var cameraButton: some View {
+        Button { selection = .camera } label: {
+            VStack(spacing: 3) {
+                ZStack {
+                    Circle().fill(CYFColor.orange).frame(width: 58, height: 58)
+                        .shadow(color: CYFColor.orange.opacity(0.34), radius: 10, y: 5)
+                    Circle().stroke(.white.opacity(0.9), lineWidth: 3).frame(width: 48, height: 48)
+                    Image(systemName: "camera.fill").font(.system(size: 23, weight: .bold)).foregroundStyle(.white)
+                }
+                Text("Câmera").font(.system(size: 10, weight: .bold)).foregroundStyle(selection == .camera ? CYFColor.orangeDark : CYFColor.muted)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .offset(y: -13)
+        .accessibilityLabel("Câmera")
     }
 }
 

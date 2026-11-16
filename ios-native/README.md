@@ -10,6 +10,8 @@ Este é o aplicativo principal do CYF para iPhone. Ele é 100% SwiftUI e usa:
 - `UIGraphicsPDFRenderer` para o relatório completo;
 - armazenamento JSON e imagens no próprio aparelho.
 
+A câmera libera a captura manual a partir de 85% de confiança e captura automaticamente ao atingir 90%. A navegação mantém a câmera central e elevada; o mapa apresenta calor por ocorrência, e o relatório reúne prioridades, tendências, pulverização, carência, armadilhas e exportação em PDF.
+
 Não há Expo, React Native, Node, Metro ou CocoaPods no fluxo deste aplicativo.
 
 ## Preparar no Mac
@@ -17,7 +19,6 @@ Não há Expo, React Native, Node, Metro ou CocoaPods no fluxo deste aplicativo.
 Na raiz do repositório:
 
 ```bash
-git switch feat/ultralytics-native-camera
 bash scripts/setup-native-ios.sh
 ```
 
@@ -32,6 +33,8 @@ O script reaproveita `mobile/assets/models/best.mlpackage`, se ele já foi expor
 5. Pressione **Run**.
 
 O aplicativo instalado é independente e não precisa de Terminal ou servidor para abrir novamente.
+
+Para enviar o projeto a uma fazenda parceira e instalar em outro MacBook/iPhone, consulte o [guia rápido em PDF](../docs/GUIA_RAPIDO_CYF_IPHONE.pdf).
 
 ## Contas demonstrativas
 

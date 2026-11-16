@@ -7,7 +7,6 @@ struct MapScreen: View {
     @State private var camera: MapCameraPosition = .region(.init(center: .init(latitude: -22.5602, longitude: -47.4050), span: .init(latitudeDelta: 0.022, longitudeDelta: 0.022)))
     @State private var satellite = true
     @State private var filtersOpen = false
-    @State private var help = false
     @State private var search = ""
     @State private var plotFilter: UUID?
     @State private var levelFilter: SeverityLevel?
@@ -25,6 +24,12 @@ struct MapScreen: View {
         }
     }
     private var total: Int { visiblePlots.reduce(0) { $0 + store.activeCount(for: $1) } }
+    private var heatRecords: [InspectionRecord] {
+        let visibleIDs = Set(visiblePlots.map(\.id))
+        return store.records.filter { record in
+            record.mapVisible && record.confirmedCount > 0 && record.location != nil && record.plotID.map(visibleIDs.contains) == true
+        }
+    }
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -35,16 +40,33 @@ struct MapScreen: View {
                             let polygon = item.element
                             if let ring = polygon.first {
                                 MapPolygon(coordinates: ring.map(\.clCoordinate))
-                                    .foregroundStyle(color(for: plot).opacity(0.34))
-                                    .stroke(color(for: plot), lineWidth: 2.5)
+                                    .foregroundStyle(CYFColor.green.opacity(0.20))
+                                    .stroke(color(for: plot).opacity(0.9), lineWidth: 1.5)
                             }
                         }
+                    }
+                    ForEach(heatRecords) { record in
+                        if let coordinate = record.location?.clCoordinate {
+                            MapCircle(center: coordinate, radius: heatRadius(for: record) * 1.9)
+                                .foregroundStyle(CYFColor.yellow.opacity(0.12))
+                            MapCircle(center: coordinate, radius: heatRadius(for: record) * 1.25)
+                                .foregroundStyle(CYFColor.orange.opacity(0.19))
+                            MapCircle(center: coordinate, radius: heatRadius(for: record) * 0.62)
+                                .foregroundStyle(CYFColor.red.opacity(0.30))
+                        }
+                    }
+                    ForEach(visiblePlots) { plot in
                         Annotation(plot.name, coordinate: GeoService.centroid(plot)) {
                             Button { selectedPlot = plot } label: {
-                                VStack(spacing: 2) {
-                                    Text("\(store.activeCount(for: plot))").font(.caption.bold())
-                                    Text(plot.name).font(.system(size: 9, weight: .bold)).lineLimit(1)
-                                }.foregroundStyle(.white).padding(.horizontal, 9).padding(.vertical, 6).background(color(for: plot)).clipShape(Capsule()).shadow(radius: 3)
+                                HStack(spacing: 6) {
+                                    Text(plot.name).font(.caption2.bold()).lineLimit(1)
+                                    Text("\(store.activeCount(for: plot))").font(.caption2.monospacedDigit().bold()).foregroundStyle(color(for: plot))
+                                }
+                                .foregroundStyle(CYFColor.ink)
+                                .padding(.horizontal, 9).padding(.vertical, 6)
+                                .background(.regularMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                                .shadow(color: .black.opacity(0.15), radius: 3, y: 1)
                             }
                         }
                     }
@@ -66,7 +88,6 @@ struct MapScreen: View {
         }
         .toolbar(.visible, for: .tabBar)
         .sheet(isPresented: $filtersOpen) { MapFilterSheet(search: $search, plotFilter: $plotFilter, levelFilter: $levelFilter, plots: store.plots, onFocus: focus) }
-        .sheet(isPresented: $help) { MapHelpView() }
         .sheet(item: $selectedPlot) { plot in PlotDetailSheet(plot: plot) { target in
             selectedPlot = nil
             editingPlotID = target.id
@@ -83,17 +104,27 @@ struct MapScreen: View {
     }
 
     private var topBar: some View {
-        VStack(spacing: 9) {
+        VStack(spacing: 8) {
             HStack {
-                VStack(alignment: .leading, spacing: 2) { Text("VISÃO GERAL DA LAVOURA").font(.caption2.bold()).tracking(1).foregroundStyle(.white.opacity(0.8)); Text("Visão operacional").font(.headline).foregroundStyle(.white) }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("MAPA DE CALOR").font(.caption2.bold()).tracking(1).foregroundStyle(CYFColor.muted)
+                    Text("Situação dos talhões").font(.headline).foregroundStyle(CYFColor.ink)
+                }
                 Spacer()
-                VStack(alignment: .trailing) { Text("Total de pragas:").font(.caption2); Text("\(total)").font(.title3.bold()) }.foregroundStyle(.white)
-            }.padding(.horizontal, 15).padding(.vertical, 10).background(CYFColor.green.opacity(0.96)).clipShape(RoundedRectangle(cornerRadius: 17))
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("OCORRÊNCIAS").font(.system(size: 8, weight: .heavy)).foregroundStyle(CYFColor.muted)
+                    Text("\(total)").font(.title3.monospacedDigit().bold()).foregroundStyle(CYFColor.ink)
+                }
+            }
+            .padding(.horizontal, 15).padding(.vertical, 10)
+            .background(.regularMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             HStack(spacing: 8) {
+                HeatLegend()
+                Spacer()
                 Button { satellite.toggle() } label: { Label(satellite ? "Satélite" : "Mapa", systemImage: "square.3.layers.3d").mapControl() }
                 Button { filtersOpen = true } label: { Label("Filtros", systemImage: "line.3.horizontal.decrease").mapControl(badge: plotFilter != nil || levelFilter != nil) }
-                Button { help = true } label: { Image(systemName: "info.circle").frame(width: 45, height: 45).background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 14)) }
-            }.frame(maxWidth: .infinity, alignment: .trailing)
+            }
         }.padding(.horizontal, 12).padding(.top, 4)
     }
 
@@ -118,6 +149,9 @@ struct MapScreen: View {
 
     private func color(for plot: Plot) -> Color {
         switch store.level(for: plot) { case .green: CYFColor.green; case .yellow: CYFColor.yellow; case .red: CYFColor.red }
+    }
+    private func heatRadius(for record: InspectionRecord) -> CLLocationDistance {
+        min(110, 38 + Double(record.confirmedCount) * 8)
     }
     private func focus(_ plot: Plot) { plotFilter = plot.id; levelFilter = nil; focus(GeoService.centroid(plot), delta: 0.009); filtersOpen = false }
     private func focus(_ coordinate: CLLocationCoordinate2D, delta: Double) { withAnimation { camera = .region(.init(center: coordinate, span: .init(latitudeDelta: delta, longitudeDelta: delta))) } }
@@ -144,6 +178,26 @@ struct MapScreen: View {
             let imported = try GeoService.parseGeoJSON(data: Data(contentsOf: url)); imported.forEach { store.addPlot($0) }
             alertMessage = "\(imported.count) talhão(ões) importado(s)."
         } catch { alertMessage = error.localizedDescription }
+    }
+}
+
+private struct HeatLegend: View {
+    var body: some View {
+        HStack(spacing: 7) {
+            legendDot(CYFColor.green, "Baixa")
+            legendDot(CYFColor.yellow, "Atenção")
+            legendDot(CYFColor.red, "Alta")
+        }
+        .font(.system(size: 9, weight: .semibold))
+        .foregroundStyle(CYFColor.ink)
+        .padding(.horizontal, 9)
+        .frame(height: 38)
+        .background(.regularMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+    }
+
+    private func legendDot(_ color: Color, _ label: String) -> some View {
+        HStack(spacing: 3) { Circle().fill(color).frame(width: 7, height: 7); Text(label) }
     }
 }
 

@@ -3,7 +3,11 @@ name: iOS nativo
 on:
   push:
     branches:
+      - main
       - feat/ultralytics-native-camera
+    paths:
+      - "ios-native/**"
+      - ".github/workflows/ios-native.yml"
   pull_request:
     paths:
       - "ios-native/**"

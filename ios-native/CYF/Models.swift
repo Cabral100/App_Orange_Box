@@ -1,6 +1,12 @@
 import CoreLocation
 import Foundation
 
+enum DetectionPolicy {
+    static let manualCaptureConfidence = 0.85
+    static let automaticCaptureConfidence = 0.90
+    static let automaticCaptureRearmConfidence = 0.78
+}
+
 enum UserRole: String, Codable, CaseIterable, Identifiable {
     case inspection
     case admin
@@ -55,7 +61,7 @@ struct InspectionRecord: Codable, Identifiable, Hashable {
     var source: String
     var demo: Bool
 
-    var confirmedDetections: [Detection] { detections.filter { $0.confidence >= 0.95 } }
+    var confirmedDetections: [Detection] { detections.filter { $0.confidence >= DetectionPolicy.manualCaptureConfidence } }
     var confirmedCount: Int { confirmedDetections.count }
 }
 
