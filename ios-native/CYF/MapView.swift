@@ -86,7 +86,6 @@ struct MapScreen: View {
             topBar
             VStack { Spacer(); drawingPanel.padding(.horizontal, 14).padding(.bottom, 8) }
         }
-        .toolbar(.visible, for: .tabBar)
         .sheet(isPresented: $filtersOpen) { MapFilterSheet(search: $search, plotFilter: $plotFilter, levelFilter: $levelFilter, plots: store.plots, onFocus: focus) }
         .sheet(item: $selectedPlot) { plot in PlotDetailSheet(plot: plot) { target in
             selectedPlot = nil
@@ -109,6 +108,7 @@ struct MapScreen: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("MAPA DE CALOR").font(.caption2.bold()).tracking(1).foregroundStyle(CYFColor.muted)
                     Text("Situação dos talhões").font(.headline).foregroundStyle(CYFColor.ink)
+                    HeatLegend().padding(.top, 4)
                 }
                 Spacer()
                 VStack(alignment: .trailing, spacing: 1) {
@@ -120,7 +120,6 @@ struct MapScreen: View {
             .background(.regularMaterial)
             .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
             HStack(spacing: 8) {
-                HeatLegend()
                 Spacer()
                 Button { satellite.toggle() } label: { Label(satellite ? "Satélite" : "Mapa", systemImage: "square.3.layers.3d").mapControl() }
                 Button { filtersOpen = true } label: { Label("Filtros", systemImage: "line.3.horizontal.decrease").mapControl(badge: plotFilter != nil || levelFilter != nil) }
@@ -190,14 +189,14 @@ private struct HeatLegend: View {
         }
         .font(.system(size: 9, weight: .semibold))
         .foregroundStyle(CYFColor.ink)
-        .padding(.horizontal, 9)
-        .frame(height: 38)
-        .background(.regularMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func legendDot(_ color: Color, _ label: String) -> some View {
-        HStack(spacing: 3) { Circle().fill(color).frame(width: 7, height: 7); Text(label) }
+        HStack(spacing: 3) {
+            Circle().fill(color).frame(width: 7, height: 7)
+            Text(label).lineLimit(1).fixedSize(horizontal: true, vertical: false)
+        }
     }
 }
 

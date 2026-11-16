@@ -18,20 +18,27 @@ struct RootView: View {
     }
 
     private var appTabs: some View {
-        VStack(spacing: 0) {
-            TabView(selection: $store.selectedTab) {
-                MapScreen().tag(AppTab.map)
-                HistoryScreen().tag(AppTab.history)
-                CameraScreen().tag(AppTab.camera)
-                if store.session?.role == .admin {
-                    DashboardScreen().tag(AppTab.dashboard)
-                }
-                AccountScreen().tag(AppTab.account)
+        appContent
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                CYFBottomBar(selection: $store.selectedTab, isAdmin: store.session?.role == .admin)
+                    .background(Color.white.ignoresSafeArea(edges: .bottom))
             }
-            .toolbar(.hidden, for: .tabBar)
-            CYFBottomBar(selection: $store.selectedTab, isAdmin: store.session?.role == .admin)
+    }
+
+    @ViewBuilder private var appContent: some View {
+        switch store.selectedTab {
+        case .map:
+            MapScreen()
+        case .history:
+            HistoryScreen()
+        case .camera:
+            CameraScreen()
+        case .dashboard:
+            if store.session?.role == .admin { DashboardScreen() } else { AccountScreen() }
+        case .account:
+            AccountScreen()
         }
-        .background(Color.white.ignoresSafeArea(edges: .bottom))
     }
 }
 
@@ -51,9 +58,9 @@ private struct CYFBottomBar: View {
             }
             item(.account, title: "Conta", icon: "person.crop.circle")
         }
-        .frame(height: 68)
+        .frame(height: 64)
         .padding(.horizontal, 6)
-        .padding(.top, 4)
+        .padding(.top, 2)
         .background(Color.white.shadow(color: .black.opacity(0.10), radius: 12, y: -4))
         .accessibilityElement(children: .contain)
     }

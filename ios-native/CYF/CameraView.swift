@@ -31,7 +31,6 @@ struct CameraScreen: View {
             cameraChrome
             if success { successOverlay }
         }
-        .toolbar(.hidden, for: .tabBar)
         .task { location.start() }
         .onChange(of: torch) { _, enabled in engine.setTorch(enabled) }
         .onChange(of: engine.confidence) { _, confidence in
