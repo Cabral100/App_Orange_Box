@@ -44,10 +44,13 @@ struct AccountScreen: View {
                 Text(store.session?.role == .admin ? "Perfil administrador" : "Perfil de inspeção").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.82))
             }
             Spacer()
-            Button { settings = true } label: { Image(systemName: "gearshape").foregroundStyle(.white).frame(width: 42, height: 42).background(.white.opacity(0.14)).clipShape(RoundedRectangle(cornerRadius: 15)) }
+            Button { settings = true } label: { Image(systemName: "gearshape").foregroundStyle(.white).frame(width: 44, height: 44).background(.white.opacity(0.14)).clipShape(RoundedRectangle(cornerRadius: 15)) }
+                .accessibilityLabel("Configurações")
         }
-        .padding(.horizontal, 20).padding(.top, 48).padding(.bottom, 23)
-        .background(CYFColor.green).clipShape(UnevenRoundedRectangle(bottomLeadingRadius: 30, bottomTrailingRadius: 30))
+        .padding(.horizontal, 20).padding(.vertical, 26)
+        .background(LinearGradient(colors: [CYFColor.forest, CYFColor.forestDeep], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .clipShape(RoundedRectangle(cornerRadius: 26))
+        .padding(.horizontal, 16).padding(.top, 12)
     }
 
     private var greeting: String {
@@ -70,6 +73,7 @@ private struct StatCard: View {
 private struct SettingsView: View {
     @EnvironmentObject private var store: AppStore
     @Environment(\.dismiss) private var dismiss
+    @AppStorage(CYFAppearance.storageKey) private var appearance = CYFAppearance.light
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -85,6 +89,11 @@ private struct SettingsView: View {
                     }.padding(.horizontal, 15).cyfCard()
                     SectionEyebrow(text: "Aplicativo")
                     VStack(spacing: 0) {
+                        Picker("Aparência", selection: $appearance) {
+                            ForEach(CYFAppearance.allCases) { option in Text(option.title).tag(option) }
+                        }
+                        .frame(minHeight: 54)
+                        Divider()
                         SettingRow(icon: "iphone", label: "Armazenamento", value: "Neste aparelho")
                         Divider(); SettingRow(icon: "brain.head.profile", label: "Análise", value: "UltralyticsYOLO · Core ML")
                     }.padding(.horizontal, 15).cyfCard()

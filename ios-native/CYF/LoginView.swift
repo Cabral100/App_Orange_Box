@@ -6,6 +6,7 @@ struct LoginView: View {
     private enum Step: Equatable { case welcome, login, create }
 
     @EnvironmentObject private var store: AppStore
+    @Environment(\.colorScheme) private var colorScheme
     @State private var step: Step = .welcome
     @State private var role: UserRole = .inspection
     @State private var user = "inspecao"
@@ -19,103 +20,126 @@ struct LoginView: View {
     private var creating: Bool { step == .create }
 
     var body: some View {
-        ScrollViewReader { scroll in
-            ScrollView {
-                VStack(spacing: 0) {
-                    cover.id("access-top")
-                    panel.offset(y: -24).padding(.bottom, -24)
+        if step == .welcome {
+            welcome
+        } else {
+            ScrollViewReader { scroll in
+                ScrollView {
+                    VStack(spacing: 0) {
+                        accessHeader.id("access-top")
+                        panel
+                    }
                 }
+                .onChange(of: step) { _, _ in scroll.scrollTo("access-top", anchor: .top) }
             }
-            .onChange(of: step) { _, _ in scroll.scrollTo("access-top", anchor: .top) }
+            .background(CYFColor.paper.ignoresSafeArea())
         }
-        .background(Color.white.ignoresSafeArea(edges: .bottom))
     }
 
-    private var cover: some View {
-        VStack(alignment: .leading, spacing: 22) {
-            HStack {
-                if step != .welcome {
-                    Button { navigate(creating ? .login : .welcome) } label: {
-                        Image(systemName: "arrow.left").font(.headline)
-                            .frame(width: 44, height: 44)
-                            .background(CYFColor.greenDark, in: Circle())
+    private var welcome: some View {
+        GeometryReader { viewport in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 22) {
+                    wordmark
+                    Spacer(minLength: 60)
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Seu pomar, mais de perto.")
+                            .font(.largeTitle.weight(.bold))
+                            .accessibilityAddTraits(.isHeader)
+                        Text("Registre vistorias, visualize os talhões e acompanhe as detecções em campo.")
+                            .font(.body).foregroundStyle(.white.opacity(0.88))
                     }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Voltar")
-                    Spacer()
+                    Button { navigate(.login) } label: {
+                        Label("Começar", systemImage: "arrow.right")
+                    }
+                    .buttonStyle(PillButtonStyle(color: CYFColor.orange))
+                    Button("Criar conta de teste") { navigate(.create) }
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                        .buttonStyle(.plain)
                 }
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("CYF").font(.title.bold())
-                    Text("Clean Your Farm").font(.caption.weight(.semibold))
-                }
-                .accessibilityElement(children: .combine)
-                if step == .welcome { Spacer() }
+                .padding(.horizontal, 24).padding(.vertical, 22)
+                .frame(minHeight: viewport.size.height, alignment: .topLeading)
             }
-            Spacer(minLength: 0)
-            VStack(alignment: .leading, spacing: 6) {
-                Text("MONITORAMENTO DE CITROS")
-                    .font(.caption2.weight(.heavy)).tracking(1.2).foregroundStyle(CYFColor.orangeSoft)
-                Text(creating ? "Sua primeira vistoria começa aqui." : "Uma visão mais clara do seu pomar.")
-                    .font(.largeTitle.weight(.heavy))
-                    .accessibilityAddTraits(.isHeader)
-            }
+            .scrollBounceBehavior(.basedOnSize)
         }
-        .padding(.horizontal, 24).padding(.top, 16).padding(.bottom, 44)
-        .frame(minHeight: step == .welcome ? 425 : 220, alignment: .leading)
         .foregroundStyle(.white)
-        .background {
-            GeometryReader { frame in
-                if let url = Bundle.main.url(forResource: "demo-inspection-1", withExtension: "png"),
-                   let photo = UIImage(contentsOfFile: url.path) {
-                    Image(uiImage: photo).resizable().scaledToFill()
-                        .frame(width: frame.size.width, height: frame.size.height)
-                        .clipped()
-                }
+        .background { welcomeBackdrop.ignoresSafeArea() }
+    }
+
+    private var welcomeBackdrop: some View {
+        GeometryReader { frame in
+            if let url = Bundle.main.url(forResource: "demo-inspection-1", withExtension: "png"),
+               let photo = UIImage(contentsOfFile: url.path) {
+                Image(uiImage: photo).resizable().scaledToFill()
+                    .frame(width: frame.size.width, height: frame.size.height)
+                    .clipped()
             }
-            .overlay {
-                LinearGradient(stops: [
-                    .init(color: CYFColor.greenDark.opacity(0.85), location: 0),
-                    .init(color: CYFColor.greenDark.opacity(0.15), location: 0.44),
-                    .init(color: CYFColor.ink.opacity(0.96), location: 1)
-                ], startPoint: .top, endPoint: .bottom)
-            }
-            .accessibilityHidden(true)
         }
-        .background(CYFColor.greenDark)
+        .background(CYFColor.forest)
+        .overlay {
+            LinearGradient(stops: [
+                .init(color: CYFColor.forestDeep.opacity(0.74), location: 0),
+                .init(color: CYFColor.forest.opacity(0.25), location: 0.38),
+                .init(color: CYFColor.forestDeep.opacity(0.94), location: 0.78),
+                .init(color: CYFColor.forestDeep, location: 1)
+            ], startPoint: .top, endPoint: .bottom)
+        }
+        .accessibilityHidden(true)
+    }
+
+    private var wordmark: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "leaf.fill")
+                .font(.headline).foregroundStyle(.white)
+                .frame(width: 40, height: 40)
+                .background(CYFColor.orange, in: RoundedRectangle(cornerRadius: 13))
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("CYF").font(.title2.bold())
+                Text("Clean Your Farm").font(.footnote.weight(.semibold))
+            }.accessibilityElement(children: .combine)
+        }
+    }
+
+    private var accessHeader: some View {
+        HStack(spacing: 12) {
+            Button { navigate(creating ? .login : .welcome) } label: {
+                Image(systemName: "chevron.left").font(.headline)
+                    .frame(width: 44, height: 44)
+                    .background(.white.opacity(0.14), in: Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Voltar")
+            wordmark
+            Spacer()
+        }
+        .foregroundStyle(.white)
+        .padding(.horizontal, 20).padding(.vertical, 15)
+        .background(CYFColor.forestDeep)
     }
 
     private var panel: some View {
-        VStack(alignment: step == .welcome ? .center : .leading, spacing: 12) {
-            Text(step == .welcome ? "Do pomar ao relatório" : creating ? "Criar conta" : "Acesso ao campo")
-                .font(.largeTitle.weight(.heavy)).foregroundStyle(CYFColor.ink)
+        VStack(alignment: .leading, spacing: 12) {
+            Text(creating ? "Criar conta" : "Acesso ao campo")
+                .font(.largeTitle.weight(.bold)).foregroundStyle(CYFColor.ink)
                 .accessibilityAddTraits(.isHeader)
-            if step == .welcome {
-                Text("Registre vistorias, localize ocorrências no mapa e acompanhe as mudanças em cada talhão.")
-                    .multilineTextAlignment(.center).foregroundStyle(CYFColor.muted)
-                Button("Começar") { navigate(.login) }.buttonStyle(PillButtonStyle())
-                link("Criar conta de teste") { navigate(.create) }
-            } else {
-                Text(creating ? "Crie um acesso local de Inspeção para experimentar o CYF." : "Escolha seu perfil. Os dados de teste são preenchidos automaticamente.")
-                    .font(.subheadline).foregroundStyle(CYFColor.muted)
-                if creating { registrationForm } else { loginForm }
-                if !error.isEmpty {
-                    Label(error, systemImage: "exclamationmark.circle")
-                        .font(.footnote.weight(.semibold)).foregroundStyle(CYFColor.orangeDark)
-                }
-                Button(creating ? "Criar acesso local" : "Entrar como \(role.title.lowercased())", action: submit)
-                    .buttonStyle(PillButtonStyle())
-                if !creating {
-                    providerOptions
-                }
-                link(creating ? "Já tenho conta de teste" : "Criar conta de teste") { navigate(creating ? .login : .create) }
-                Text("Acesso demonstrativo. Os dados ficam neste aparelho.")
-                    .font(.caption).foregroundStyle(CYFColor.muted)
-                    .frame(maxWidth: .infinity, alignment: .center)
+            Text(creating ? "Crie um acesso local de Inspeção para experimentar o CYF." : "Escolha seu perfil. Os dados de teste são preenchidos automaticamente.")
+                .font(.body).foregroundStyle(CYFColor.muted)
+            if creating { registrationForm } else { loginForm }
+            if !error.isEmpty {
+                Label(error, systemImage: "exclamationmark.circle")
+                    .font(.footnote.weight(.semibold)).foregroundStyle(CYFColor.orangeDark)
             }
+            Button(creating ? "Criar acesso local" : "Entrar como \(role.title.lowercased())", action: submit)
+                .buttonStyle(PillButtonStyle())
+            if !creating { providerOptions }
+            link(creating ? "Já tenho conta de teste" : "Criar conta de teste") { navigate(creating ? .login : .create) }
+            Text("Acesso demonstrativo. Os dados ficam neste aparelho.")
+                .font(.footnote).foregroundStyle(CYFColor.muted)
+                .frame(maxWidth: .infinity, alignment: .center)
         }
-        .padding(24)
-        .frame(maxWidth: .infinity)
-        .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
+        .padding(18).cyfCard().padding(14)
     }
 
     private var providerOptions: some View {
@@ -132,11 +156,12 @@ struct LoginView: View {
                     Image("GoogleSignInMark").resizable().scaledToFit().frame(width: 19, height: 19)
                 }
                 .frame(maxWidth: .infinity, minHeight: 50)
-                .foregroundStyle(CYFColor.ink)
+                .foregroundStyle(Color.black.opacity(0.86))
                 .background(.white, in: RoundedRectangle(cornerRadius: 11))
                 .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(CYFColor.lineStrong) }
             }.buttonStyle(.plain)
-            AppleDemoButton { store.login(role: role) }.frame(height: 50)
+            AppleDemoButton(style: colorScheme == .dark ? .whiteOutline : .black) { store.login(role: role) }
+                .id(colorScheme).frame(height: 50)
         }
     }
 
@@ -201,11 +226,13 @@ struct LoginView: View {
     private func roleButton(_ option: UserRole) -> some View {
         Button { choose(option) } label: {
             HStack(alignment: .top, spacing: 6) {
-                DemoAvatar(role: option, size: 30)
+                Image(systemName: option == .admin ? "chart.bar.xaxis" : "scope")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(CYFColor.greenDark)
+                    .frame(width: 28, height: 28).accessibilityHidden(true)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(option.title).font(.footnote.bold()).foregroundStyle(CYFColor.ink)
+                    Text(option.title).font(.subheadline.bold()).foregroundStyle(CYFColor.ink)
                     Text(option == .admin ? "Operação e relatórios" : "Câmera, mapa e histórico")
-                        .font(.caption2).foregroundStyle(CYFColor.muted)
+                        .font(.footnote).foregroundStyle(CYFColor.muted)
                 }
             }
             .frame(maxWidth: .infinity, minHeight: 63, alignment: .leading).padding(.horizontal, 8)
@@ -265,12 +292,13 @@ struct LoginView: View {
 }
 
 private struct AppleDemoButton: UIViewRepresentable {
+    let style: ASAuthorizationAppleIDButton.Style
     var action: () -> Void
 
     func makeCoordinator() -> Coordinator { Coordinator(action: action) }
 
     func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
-        let button = ASAuthorizationAppleIDButton(type: .signIn, style: .black)
+        let button = ASAuthorizationAppleIDButton(type: .signIn, style: style)
         button.cornerRadius = 11
         button.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
         return button

@@ -4,6 +4,7 @@ import UniformTypeIdentifiers
 
 struct MapScreen: View {
     @EnvironmentObject private var store: AppStore
+    @Environment(\.dynamicTypeSize) private var textSize
     @State private var camera: MapCameraPosition = .region(.init(center: .init(latitude: -22.5602, longitude: -47.4050), span: .init(latitudeDelta: 0.022, longitudeDelta: 0.022)))
     @State private var satellite = true
     @State private var filtersOpen = false
@@ -19,6 +20,7 @@ struct MapScreen: View {
     @State private var importing = false
     @State private var alertMessage: String?
     @State private var framedPlots = false
+    @State private var showsHeat = false
 
     private var visiblePlots: [Plot] {
         store.plots.filter { plot in
@@ -28,43 +30,17 @@ struct MapScreen: View {
     private var total: Int { visiblePlots.reduce(0) { $0 + store.activeCount(for: $1) } }
 
     var body: some View {
-        ZStack(alignment: .top) {
-            MapReader { proxy in
-                Map(position: $camera, interactionModes: .all) {
-                    ForEach(visiblePlots) { plot in
-                        ForEach(Array(plot.geometry.polygons.enumerated()), id: \.offset) { item in
-                            let polygon = item.element
-                            if let ring = polygon.first {
-                                MapPolygon(coordinates: ring.map(\.clCoordinate))
-                                    .foregroundStyle(color(for: plot).opacity(0.34))
-                                    .stroke(color(for: plot), lineWidth: 2.5)
-                            }
-                        }
-                        Annotation(plot.name, coordinate: GeoService.centroid(plot)) {
-                            Button { selectedPlot = plot } label: {
-                                VStack(spacing: 2) {
-                                    Text("\(store.activeCount(for: plot))").font(.caption.bold())
-                                    Text(plot.name).font(.system(size: 9, weight: .bold)).lineLimit(1)
-                                }.foregroundStyle(.white).padding(.horizontal, 9).padding(.vertical, 6).background(color(for: plot)).clipShape(Capsule()).shadow(radius: 3)
-                            }
-                        }
-                    }
-                    ForEach(Array(drawingPoints.enumerated()), id: \.offset) { item in
-                        Marker("\(item.offset + 1)", coordinate: item.element).tint(CYFColor.orange)
-                    }
-                    if drawingPoints.count >= 3 { MapPolygon(coordinates: drawingPoints).foregroundStyle(CYFColor.orange.opacity(0.2)).stroke(CYFColor.orange, lineWidth: 2) }
-                    if let coordinate = store.pendingInspection?.location?.clCoordinate { Marker("Foto", coordinate: coordinate).tint(CYFColor.orange) }
-                }
-                .mapStyle(satellite ? .imagery(elevation: .realistic) : .standard(elevation: .flat))
-                .mapControls { MapCompass(); MapScaleView(); MapUserLocationButton() }
-                .gesture(SpatialTapGesture().onEnded { value in
-                    guard drawing, let coordinate = proxy.convert(value.location, from: .local) else { return }
-                    drawingPoints.append(coordinate)
-                })
-            }
-            topBar
-            VStack { Spacer(); drawingPanel.padding(.horizontal, 14).padding(.bottom, 8) }
+        let spots = showsHeat && !drawing ? heatSpots : []
+        VStack(spacing: 0) {
+            topBar(hasHeatSpots: !spots.isEmpty)
+            fieldMap(heat: spots)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            drawingPanel
+                .padding(.horizontal, 14).padding(.vertical, 9)
+                .frame(maxWidth: .infinity)
+                .background(CYFColor.paper)
         }
+        .background(CYFColor.paper)
         .sheet(isPresented: $filtersOpen) { MapFilterSheet(search: $search, plotFilter: $plotFilter, levelFilter: $levelFilter, plots: store.plots, onFocus: focus) }
         .sheet(isPresented: $help) { MapHelpView() }
         .sheet(item: $selectedPlot) { plot in PlotDetailSheet(plot: plot) { target in
@@ -91,50 +67,140 @@ struct MapScreen: View {
         }
     }
 
-    private var topBar: some View {
+    private func fieldMap(heat: [HeatSpot]) -> some View {
+        MapReader { proxy in
+            Map(position: $camera, interactionModes: .all) {
+                ForEach(visiblePlots) { plot in
+                    ForEach(Array(plot.geometry.polygons.enumerated()), id: \.offset) { item in
+                        let polygon = item.element
+                        if let ring = polygon.first {
+                            MapPolygon(coordinates: ring.map(\.clCoordinate))
+                                .foregroundStyle(color(for: plot).opacity(showsHeat ? 0.13 : 0.34))
+                                .stroke(color(for: plot), lineWidth: 2.5)
+                        }
+                    }
+                    Annotation(plot.name, coordinate: GeoService.centroid(plot)) {
+                        Button { selectedPlot = plot } label: {
+                            HStack(spacing: 5) {
+                                Circle().fill(color(for: plot)).frame(width: 8, height: 8)
+                                Text(plot.name).lineLimit(1)
+                                Text("\(store.activeCount(for: plot))").monospacedDigit()
+                            }
+                            .font(.caption.weight(.semibold)).foregroundStyle(CYFColor.ink)
+                            .padding(.horizontal, 9).padding(.vertical, 7)
+                            .background(CYFColor.surface, in: Capsule())
+                            .shadow(color: .black.opacity(0.28), radius: 3, y: 2)
+                        }
+                    }
+                }
+                if !heat.isEmpty { heatOverlay(heat) }
+                ForEach(Array(drawingPoints.enumerated()), id: \.offset) { item in
+                    Marker("\(item.offset + 1)", coordinate: item.element).tint(CYFColor.orange)
+                }
+                if drawingPoints.count >= 3 { MapPolygon(coordinates: drawingPoints).foregroundStyle(CYFColor.orange.opacity(0.2)).stroke(CYFColor.orange, lineWidth: 2) }
+                if let coordinate = store.pendingInspection?.location?.clCoordinate { Marker("Foto", coordinate: coordinate).tint(CYFColor.orange) }
+            }
+            .mapStyle(satellite ? .imagery(elevation: .realistic) : .standard(elevation: .flat))
+            .mapControls { MapCompass(); MapScaleView(); MapUserLocationButton() }
+            .gesture(SpatialTapGesture().onEnded { value in
+                guard drawing, let coordinate = proxy.convert(value.location, from: .local) else { return }
+                drawingPoints.append(coordinate)
+            })
+        }
+    }
+
+    @MapContentBuilder
+    private func heatOverlay(_ spots: [HeatSpot]) -> some MapContent {
+        let peak = max(1, spots.map(\.count).max() ?? 0)
+        ForEach(spots) { spot in
+            let strength = Double(spot.count) / Double(peak)
+            let tint = strength >= 0.66 ? CYFColor.red : strength >= 0.33 ? CYFColor.orange : CYFColor.yellow
+            MapCircle(center: spot.coordinate, radius: 85).foregroundStyle(tint.opacity(0.20))
+            MapCircle(center: spot.coordinate, radius: 52).foregroundStyle(tint.opacity(0.32))
+            MapCircle(center: spot.coordinate, radius: 22).foregroundStyle(tint.opacity(0.60))
+        }
+    }
+
+    private var heatSpots: [HeatSpot] {
+        let visibleByID = Dictionary(uniqueKeysWithValues: visiblePlots.map { ($0.id, $0) })
+        var counts: [HeatCell: Int] = [:]
+        for record in store.records where record.mapVisible && record.confirmedCount > 0 {
+            guard let id = record.plotID, let plot = visibleByID[id],
+                  record.capturedAt > (plot.lastSprayedAt ?? .distantPast),
+                  let location = record.location, CLLocationCoordinate2DIsValid(location.clCoordinate) else { continue }
+            let cell = HeatCell(
+                latitude: Int((location.latitude / HeatCell.degrees).rounded()),
+                longitude: Int((location.longitude / HeatCell.degrees).rounded())
+            )
+            counts[cell, default: 0] += record.confirmedCount
+        }
+        return counts.map { HeatSpot(id: $0.key, count: $0.value) }
+    }
+
+    private func topBar(hasHeatSpots: Bool) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                Image(systemName: "map.fill")
-                    .font(.headline).foregroundStyle(CYFColor.greenDark)
-                    .frame(width: 37, height: 37)
-                    .background(CYFColor.greenSoft, in: RoundedRectangle(cornerRadius: 11))
-                    .accessibilityHidden(true)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Mapa de talhões").font(.headline).foregroundStyle(CYFColor.ink)
-                    Text("\(visiblePlots.count) talhões visíveis").font(.caption).foregroundStyle(CYFColor.muted)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Mapa de talhões").font(.title2.bold()).accessibilityAddTraits(.isHeader)
+                    Text("\(visiblePlots.count) talhões · \(total) pragas ativas")
+                        .font(.subheadline).foregroundStyle(.white.opacity(0.84))
                 }
-                Spacer()
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text("\(total)").font(.headline.monospacedDigit()).foregroundStyle(CYFColor.orangeDark)
-                    Text("pragas ativas").font(.caption2.weight(.semibold)).foregroundStyle(CYFColor.muted)
-                }
-            }
-            .padding(10)
-            .background(CYFColor.paper, in: RoundedRectangle(cornerRadius: 16))
-            HStack(spacing: 8) {
-                Button { satellite.toggle() } label: { Label(satellite ? "Mapa" : "Satélite", systemImage: "square.3.layers.3d").mapControl() }
-                Button { filtersOpen = true } label: { Label("Filtros", systemImage: "line.3.horizontal.decrease").mapControl(badge: plotFilter != nil || levelFilter != nil) }
+                Spacer(minLength: 2)
                 Button { help = true } label: {
-                    Image(systemName: "info.circle").frame(width: 44, height: 44)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 13))
+                    mapHeaderIcon("info.circle")
                 }.accessibilityLabel("Como usar o mapa")
-            }.buttonStyle(.plain)
-            HStack(spacing: 9) {
-                legendEntry("0", color: CYFColor.green)
-                legendEntry("1–20", color: CYFColor.yellow)
-                legendEntry("21+", color: CYFColor.red)
+                Button { showAllPlots() } label: {
+                    mapHeaderIcon("arrow.up.left.and.arrow.down.right")
+                }
+                .accessibilityLabel("Enquadrar todos os talhões")
+                .accessibilityHint("Limpa os filtros e mostra todos os talhões cadastrados")
+                .disabled(store.plots.isEmpty)
             }
-            .padding(.horizontal, 10).padding(.vertical, 7)
-            .background(CYFColor.paper, in: Capsule())
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Faixas de pragas por talhão: zero, de uma a vinte, vinte e uma ou mais.")
-        }.padding(.horizontal, 12).padding(.top, 4)
+            .buttonStyle(.plain).foregroundStyle(.white)
+            HStack(spacing: 8) {
+                Menu {
+                    Button("Satélite", systemImage: satellite ? "checkmark" : "globe.americas") { satellite = true }
+                    Button("Mapa padrão", systemImage: satellite ? "map" : "checkmark") { satellite = false }
+                    Toggle("Mapa de calor", isOn: $showsHeat)
+                } label: {
+                    Label("Camadas", systemImage: "square.3.layers.3d").mapControl(badge: showsHeat)
+                }
+                Button { filtersOpen = true } label: {
+                    Label("Filtros", systemImage: "line.3.horizontal.decrease").mapControl(badge: plotFilter != nil || levelFilter != nil)
+                }.buttonStyle(.plain)
+                Spacer(minLength: 0)
+            }
+            if showsHeat && !drawing {
+                Text(hasHeatSpots ? "Mapa de calor · detecções ativas com localização" : "Sem detecções ativas com localização neste recorte.")
+                    .font(.footnote.weight(.semibold)).foregroundStyle(.white)
+                if hasHeatSpots {
+                    HStack(spacing: 10) {
+                        legendEntry("Menos", color: CYFColor.yellow)
+                        legendEntry("Intermediário", color: CYFColor.orange)
+                        legendEntry("Mais", color: CYFColor.red)
+                    }
+                }
+            } else {
+                HStack(spacing: 10) {
+                    legendEntry("0", color: CYFColor.green)
+                    legendEntry("1–20", color: CYFColor.yellow)
+                    legendEntry("21+", color: CYFColor.red)
+                }.accessibilityLabel("Faixas de pragas por talhão: zero, de uma a vinte, vinte e uma ou mais")
+            }
+        }
+        .padding(.horizontal, 15).padding(.vertical, 10)
+        .background(LinearGradient(colors: [CYFColor.forest, CYFColor.forestDeep], startPoint: .topLeading, endPoint: .bottomTrailing))
+    }
+
+    private func mapHeaderIcon(_ icon: String) -> some View {
+        Image(systemName: icon).font(.headline).frame(width: 44, height: 44)
+            .background(.white.opacity(0.14), in: Circle())
     }
 
     private func legendEntry(_ label: String, color: Color) -> some View {
         HStack(spacing: 4) {
-            Circle().fill(color).frame(width: 8, height: 8)
-            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(CYFColor.ink)
+            Circle().fill(color).frame(width: 9, height: 9).accessibilityHidden(true)
+            Text(label).font(.footnote.weight(.medium)).foregroundStyle(.white)
         }
     }
 
@@ -150,20 +216,20 @@ struct MapScreen: View {
                 }
             }.padding(14).cyfCard()
         } else {
-            HStack(spacing: 9) {
+            let layout = textSize.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 8)) : AnyLayout(HStackLayout(spacing: 9))
+            layout {
                 Button { beginDrawing() } label: {
-                    Label("Desenhar", systemImage: "pencil.and.outline")
-                        .foregroundStyle(.white).frame(minHeight: 44).padding(.horizontal, 13)
-                        .background(CYFColor.greenDark, in: RoundedRectangle(cornerRadius: 13))
+                    Label("Desenhar talhão", systemImage: "pencil.and.outline")
+                        .foregroundStyle(.white).frame(maxWidth: .infinity, minHeight: 44).padding(.horizontal, 8)
+                        .background(CYFColor.forest, in: RoundedRectangle(cornerRadius: 13))
                 }
                 Button { importing = true } label: {
                     Label("Importar GeoJSON", systemImage: "doc.badge.plus")
-                        .foregroundStyle(CYFColor.greenDark).frame(minHeight: 44).padding(.horizontal, 13)
-                        .background(CYFColor.paper, in: RoundedRectangle(cornerRadius: 13))
+                        .foregroundStyle(CYFColor.greenDark).frame(maxWidth: .infinity, minHeight: 44).padding(.horizontal, 8)
+                        .background(CYFColor.surface, in: RoundedRectangle(cornerRadius: 13))
                 }
             }
-            .font(.caption.weight(.bold)).buttonStyle(.plain)
-            .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
+            .font(.subheadline.weight(.semibold)).buttonStyle(.plain)
         }
     }
 
@@ -172,9 +238,16 @@ struct MapScreen: View {
     }
     private func focus(_ plot: Plot) { plotFilter = plot.id; levelFilter = nil; focus(GeoService.centroid(plot), delta: 0.009); filtersOpen = false }
     private func focus(_ coordinate: CLLocationCoordinate2D, delta: Double) { withAnimation { camera = .region(.init(center: coordinate, span: .init(latitudeDelta: delta, longitudeDelta: delta))) } }
-    private func framePlots() {
+    private func showAllPlots() {
+        plotFilter = nil
+        levelFilter = nil
+        search = ""
+        framePlots(store.plots)
+    }
+
+    private func framePlots(_ plots: [Plot]? = nil) {
         var bounds = MKMapRect.null
-        for plot in visiblePlots {
+        for plot in plots ?? visiblePlots {
             for polygon in plot.geometry.polygons {
                 for coordinate in polygon.first ?? [] {
                     let point = MKMapPoint(coordinate.clCoordinate)
@@ -213,9 +286,24 @@ struct MapScreen: View {
     }
 }
 
+private struct HeatCell: Hashable {
+    static let degrees = 0.0006
+    let latitude: Int
+    let longitude: Int
+}
+
+private struct HeatSpot: Identifiable {
+    let id: HeatCell
+    let count: Int
+
+    var coordinate: CLLocationCoordinate2D {
+        .init(latitude: Double(id.latitude) * HeatCell.degrees, longitude: Double(id.longitude) * HeatCell.degrees)
+    }
+}
+
 private extension View {
     func mapControl(badge: Bool = false) -> some View {
-        self.font(.subheadline.bold()).foregroundStyle(CYFColor.greenDark).padding(.horizontal, 13).frame(height: 45).background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 14)).overlay(alignment: .topTrailing) { if badge { Circle().fill(CYFColor.orange).frame(width: 8, height: 8).offset(x: 2, y: -2) } }
+        self.font(.subheadline.weight(.semibold)).foregroundStyle(CYFColor.greenDark).padding(.horizontal, 13).frame(minHeight: 44).background(CYFColor.surface).clipShape(RoundedRectangle(cornerRadius: 14)).overlay(alignment: .topTrailing) { if badge { Circle().fill(CYFColor.orange).frame(width: 8, height: 8).offset(x: 2, y: -2) } }
     }
 }
 
@@ -321,8 +409,22 @@ private struct PlotDetailSheet: View {
     private func ensureSpray() { if plot.sprayApplication == nil { plot.sprayApplication = .init(product: "", category: "Acaricida", target: "Ácaro", appliedAt: Date(), reentryHours: 24, harvestIntervalDays: 14, nextInspectionDays: 3) } }
     private func ensureTrap() { if plot.trapMonitoring == nil { plot.trapMonitoring = .init(pest: "Furão", metric: "Índice", captured: 0, traps: 1, checkedAt: Date()) } }
 }
-
 private struct MapHelpView: View {
     @Environment(\.dismiss) private var dismiss
-    var body: some View { NavigationStack { List { Label("Desenhar: toque nos cantos e conclua com três ou mais pontos.", systemImage: "pencil.and.outline"); Label("GeoJSON: use WGS84/EPSG:4326 com Polygon ou MultiPolygon.", systemImage: "doc.badge.plus"); Label("Editar: toque no rótulo de um talhão para renomear, manejar ou excluir.", systemImage: "slider.horizontal.3"); Label("Filtrar: pesquise o nome; o mapa enquadra e mostra apenas o selecionado.", systemImage: "line.3.horizontal.decrease.circle") }.navigationTitle("Como usar o mapa").toolbar { Button("Fechar") { dismiss() } } }.presentationDetents([.medium]) }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Label("Toque nos cantos do talhão para desenhar o contorno. Marque pelo menos três pontos.", systemImage: "pencil.and.outline")
+                Label("Use o botão de enquadrar para mostrar todos os talhões de uma vez.", systemImage: "arrow.up.left.and.arrow.down.right")
+                Label("Em Camadas, ative o mapa de calor para destacar onde há mais detecções ativas registradas.", systemImage: "square.3.layers.3d")
+                Label("Para importar, use GeoJSON em WGS84/EPSG:4326 com Polygon ou MultiPolygon.", systemImage: "doc.badge.plus")
+                Label("Toque no nome de um talhão para editar o limite ou registrar o manejo.", systemImage: "slider.horizontal.3")
+                Label("Use Filtros para buscar pelo nome ou pela quantidade de pragas.", systemImage: "line.3.horizontal.decrease.circle")
+            }
+            .navigationTitle("Como usar o mapa")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { Button("Fechar") { dismiss() } }
+        }.presentationDetents([.medium, .large])
+    }
 }

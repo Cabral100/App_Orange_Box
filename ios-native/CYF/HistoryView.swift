@@ -41,10 +41,10 @@ struct HistoryScreen: View {
                 VStack(alignment: .leading, spacing: 16) {
                     AppHeader(title: "Histórico", trailing: store.session?.role == .admin ? AnyView(Button { store.selectedTab = .dashboard } label: { Label("Relatórios", systemImage: "chart.pie.fill").font(.caption.bold()).foregroundStyle(.white).padding(.horizontal, 13).frame(height: 45).background(CYFColor.orange).clipShape(Capsule()) }) : nil)
                     HStack {
-                        Button { filtersOpen = true } label: { Label(filterSummary, systemImage: "line.3.horizontal.decrease").font(.subheadline.bold()).foregroundStyle(CYFColor.green).padding(.horizontal, 13).frame(height: 46).background(Color.white).clipShape(RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(CYFColor.lineStrong)) }
-                        Spacer(); Text("\(filtered.count) registro(s)").font(.caption.weight(.semibold)).foregroundStyle(CYFColor.muted)
+                        Button { filtersOpen = true } label: { Label(filterSummary, systemImage: "line.3.horizontal.decrease").font(.subheadline.bold()).foregroundStyle(CYFColor.greenDark).padding(.horizontal, 13).frame(minHeight: 46).background(CYFColor.surface).clipShape(RoundedRectangle(cornerRadius: 15)).overlay(RoundedRectangle(cornerRadius: 15).stroke(CYFColor.lineStrong)) }
+                        Spacer(); Text("\(filtered.count) registro(s)").font(.footnote.weight(.semibold)).foregroundStyle(CYFColor.muted)
                     }
-                    if groups.isEmpty { EmptyState(icon: "camera.fill", title: "Nenhuma vistoria neste período", message: "Use a câmera para registrar uma laranja, mesmo quando não houver praga.") }
+                    if groups.isEmpty { EmptyState(icon: "camera.fill", title: "Nenhuma vistoria neste período", message: "Ajuste os filtros ou use a câmera para registrar uma nova vistoria.") }
                     ForEach(groups, id: \.0) { group in
                         let label = group.0
                         let records = group.1
@@ -86,7 +86,7 @@ private struct HistoryRow: View {
             VStack(alignment: .leading, spacing: 5) {
                 HStack { Text(store.plot(for: record)?.name ?? "Sem talhão").font(.headline).lineLimit(1); if record.demo { Text("EXEMPLO").font(.system(size: 8, weight: .heavy)).foregroundStyle(CYFColor.orangeDark).padding(4).background(CYFColor.orangeSoft).clipShape(RoundedRectangle(cornerRadius: 5)) } }
                 Text(record.confirmedCount > 0 ? "\(record.confirmedCount) ácaro(s) detectado(s)" : "Sem sinal confirmado")
-                    .font(.subheadline.weight(.semibold)).foregroundStyle(record.confirmedCount > 0 ? CYFColor.orange : CYFColor.green)
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(record.confirmedCount > 0 ? CYFColor.orangeDark : CYFColor.green)
                 Text(record.capturedAt.formatted(date: .abbreviated, time: .shortened)).font(.caption).foregroundStyle(CYFColor.muted)
             }
             Spacer(); Image(systemName: record.mapVisible ? "mappin.circle.fill" : "mappin.slash.circle").foregroundStyle(record.mapVisible ? CYFColor.green : CYFColor.lineStrong)

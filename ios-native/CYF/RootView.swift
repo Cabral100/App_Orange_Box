@@ -36,59 +36,50 @@ struct RootView: View {
     }
 
     private var tabBar: some View {
-        HStack(spacing: 2) {
-            HStack(spacing: 0) {
-                tab(.map, title: "Mapa", icon: "map")
-                tab(.history, title: "Histórico", icon: "clock.arrow.circlepath")
-            }.frame(maxWidth: .infinity)
-
+        HStack(alignment: .bottom, spacing: 0) {
+            tab(.map, title: "Mapa", icon: "map")
+            tab(.history, title: "Histórico", icon: "clock.arrow.circlepath")
             tab(.camera, title: "Câmera", icon: "camera.fill")
-                .frame(width: 68)
-                .zIndex(1)
-
-            HStack(spacing: 0) {
-                if store.session?.role == .admin {
-                    tab(.dashboard, title: "Relatórios", icon: "chart.pie")
-                }
-                tab(.account, title: "Conta", icon: "person.crop.circle")
-            }.frame(maxWidth: .infinity)
+            if store.session?.role == .admin {
+                tab(.dashboard, title: "Relatórios", icon: "chart.pie")
+            }
+            tab(.account, title: "Conta", icon: "person.crop.circle")
         }
-        .padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 4)
+        .padding(.horizontal, 6)
+        .padding(.top, 4)
+        .padding(.bottom, 5)
         .background {
-            Color.white.ignoresSafeArea(edges: .bottom)
-                .shadow(color: CYFColor.greenDark.opacity(0.1), radius: 12, y: -4)
+            CYFColor.surface
+                .overlay(alignment: .top) { Rectangle().fill(CYFColor.line).frame(height: 1) }
+                .ignoresSafeArea(edges: .bottom)
+                .padding(.top, 25)
         }
-        .overlay(alignment: .top) { Rectangle().fill(CYFColor.line).frame(height: 1).allowsHitTesting(false) }
     }
 
     private func tab(_ destination: AppTab, title: String, icon: String) -> some View {
         let selected = store.selectedTab == destination
-        let camera = destination == .camera
+        let isCamera = destination == .camera
         return Button {
             store.selectedTab = destination
         } label: {
-            VStack(spacing: 5) {
-                if camera {
-                    Color.clear.frame(width: 54, height: 29)
-                        .overlay(alignment: .bottom) {
-                            Image(systemName: icon)
-                                .font(.system(size: 23, weight: .semibold))
-                                .foregroundStyle(.white)
-                                .frame(width: 54, height: 54)
-                                .background(CYFColor.orange, in: Circle())
-                                .shadow(color: CYFColor.orangeDark.opacity(0.3), radius: 6, y: 4)
-                                .offset(y: -4)
-                        }
+            VStack(spacing: 4) {
+                if isCamera {
+                    Image(systemName: icon)
+                        .font(.title3.weight(.semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 56, height: 56)
+                        .background(CYFColor.orange, in: Circle())
+                        .shadow(color: CYFColor.orange.opacity(0.3), radius: 5, y: 3)
                 } else {
-                    Image(systemName: icon).font(.system(size: 20, weight: selected ? .semibold : .regular))
-                        .frame(height: 29)
+                    Image(systemName: icon).font(.system(size: 21, weight: selected ? .semibold : .regular))
+                        .frame(height: 27)
                 }
-                Text(title).font(.caption2.weight(selected || camera ? .bold : .medium))
-                    .lineLimit(1).minimumScaleFactor(0.8)
+                Text(title).font(.caption.weight(selected || isCamera ? .semibold : .medium))
+                    .lineLimit(1).minimumScaleFactor(0.75)
             }
             .foregroundStyle(selected ? CYFColor.greenDark : CYFColor.muted)
-            .frame(maxWidth: .infinity, minHeight: 48)
-            .contentShape(Rectangle().inset(by: camera ? -15 : 0))
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .bottom)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .accessibilityLabel(title)
@@ -105,7 +96,8 @@ struct AppHeader: View {
         HStack(alignment: .center, spacing: 12) {
             VStack(alignment: .leading, spacing: 3) {
                 SectionEyebrow(text: "Fazenda Boa Esperança")
-                Text(title).font(.system(size: 34, weight: .black)).foregroundStyle(CYFColor.ink)
+                Text(title).font(.largeTitle.weight(.bold)).foregroundStyle(CYFColor.ink)
+                    .accessibilityAddTraits(.isHeader)
                 if let subtitle { Text(subtitle).font(.subheadline.weight(.medium)).foregroundStyle(CYFColor.muted) }
             }
             Spacer()

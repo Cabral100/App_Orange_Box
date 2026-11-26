@@ -76,7 +76,7 @@ struct DashboardScreen: View {
                         Text("\(period) dias").font(.caption.weight(.bold))
                             .frame(maxWidth: .infinity, minHeight: 44)
                             .foregroundStyle(period == days ? Color.white : CYFColor.greenDark)
-                            .background(period == days ? CYFColor.greenDark : CYFColor.greenSoft, in: Capsule())
+                            .background(period == days ? CYFColor.forest : CYFColor.greenSoft, in: Capsule())
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(period == days ? .isSelected : [])
@@ -103,34 +103,36 @@ struct DashboardScreen: View {
         return VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .top, spacing: 10) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Visão geral").font(.headline).foregroundStyle(CYFColor.greenDark)
-                    Text("\(total)").font(.system(size: 43, weight: .black)).monospacedDigit().foregroundStyle(CYFColor.ink)
-                    Text("Detecções confirmadas").font(.subheadline.weight(.semibold)).foregroundStyle(CYFColor.muted)
+                    Text("Visão geral").font(.headline)
+                    Text("\(total)").font(.largeTitle.weight(.bold)).monospacedDigit()
+                    Text("Detecções confirmadas").font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.88))
                 }
                 Spacer()
                 Text("\(delta > 0 ? "+" : "")\(delta) vs. anterior")
-                    .font(.caption.weight(.bold)).foregroundStyle(CYFColor.orangeDark)
+                    .font(.footnote.weight(.bold)).foregroundStyle(.white)
                     .padding(.horizontal, 9).padding(.vertical, 7)
-                    .background(CYFColor.orangeSoft, in: Capsule())
+                    .background(CYFColor.orange, in: Capsule())
             }
             VStack(spacing: 9) {
-                comparisonBar("Atual", value: total, scale: scale, color: CYFColor.green)
-                comparisonBar("Anterior", value: previousTotal, scale: scale, color: CYFColor.orange)
+                comparisonBar("Atual", value: total, scale: scale, color: Color(red: 0.60, green: 0.90, blue: 0.69))
+                comparisonBar("Anterior", value: previousTotal, scale: scale, color: Color(red: 1, green: 0.69, blue: 0.46))
             }
-        }.padding(17).cyfCard()
+        }
+        .foregroundStyle(.white).padding(17)
+        .background(LinearGradient(colors: [CYFColor.forest, CYFColor.forestDeep], startPoint: .topLeading, endPoint: .bottomTrailing))
+        .clipShape(RoundedRectangle(cornerRadius: 22))
     }
 
     private func comparisonBar(_ title: String, value: Int, scale: Int, color: Color) -> some View {
         HStack(spacing: 9) {
             Text(title).font(.caption.weight(.semibold)).frame(width: 49, alignment: .leading)
             GeometryReader { frame in
-                Capsule().fill(CYFColor.soft).overlay(alignment: .leading) {
+                Capsule().fill(.white.opacity(0.18)).overlay(alignment: .leading) {
                     Capsule().fill(color).frame(width: frame.size.width * CGFloat(value) / CGFloat(scale))
                 }
             }.frame(height: 8).accessibilityHidden(true)
             Text("\(value)").font(.caption.bold()).monospacedDigit().frame(minWidth: 25, alignment: .trailing)
         }
-        .foregroundStyle(CYFColor.ink)
         .accessibilityElement(children: .combine)
     }
 
@@ -231,7 +233,7 @@ private struct CardTitle: View {
 }
 private struct Deadline: View {
     let label: String; let date: Date?
-    var body: some View { VStack(alignment: .leading) { Text(label.uppercased()).font(.system(size: 7, weight: .heavy)).foregroundStyle(CYFColor.muted); Text(date?.formatted(.dateTime.day().month()) ?? "—").font(.caption2.bold()) }.frame(maxWidth: .infinity, alignment: .leading) }
+    var body: some View { VStack(alignment: .leading) { Text(label).font(.footnote.weight(.semibold)).foregroundStyle(CYFColor.muted); Text(date?.formatted(.dateTime.day().month()) ?? "—").font(.footnote.bold()) }.frame(maxWidth: .infinity, alignment: .leading) }
 }
 
 private struct DashboardFilterSheet: View {

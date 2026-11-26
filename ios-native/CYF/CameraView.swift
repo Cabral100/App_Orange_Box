@@ -64,10 +64,8 @@ struct CameraScreen: View {
                 }
             }.padding(.horizontal, 18).padding(.top, 10)
             Text(guidance).font(.caption.bold()).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 8)
-                .background(canCaptureManually ? CYFColor.green.opacity(0.9) : Color.black.opacity(0.55)).clipShape(Capsule()).padding(.top, 12)
-            Spacer()
+                .background(canCaptureManually ? CYFColor.forest.opacity(0.95) : Color.black.opacity(0.7)).clipShape(Capsule()).padding(.top, 12)
             focusFrame
-            Spacer()
             HStack(spacing: 7) {
                 Circle().fill(engine.modelReady ? Color.green : Color.orange).frame(width: 8, height: 8)
                 Text(engine.errorMessage ?? (engine.modelReady ? "UltralyticsYOLO · Core ML pronto" : "Carregando modelo no iPhone…")).lineLimit(1)
@@ -89,8 +87,20 @@ struct CameraScreen: View {
     }
 
     private var focusFrame: some View {
-        RoundedRectangle(cornerRadius: 24).stroke(.white.opacity(0.9), style: StrokeStyle(lineWidth: 2, dash: [26, 16]))
-            .frame(width: 310, height: 310).overlay { Circle().stroke(.white.opacity(0.65), lineWidth: 1).frame(width: 54, height: 54).overlay(Circle().fill(.white).frame(width: 4, height: 4)) }
+        GeometryReader { space in
+            let side = max(0, min(310, space.size.width - 36, space.size.height - 12))
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(.white.opacity(0.9), style: StrokeStyle(lineWidth: 2, dash: [26, 16]))
+                .frame(width: side, height: side)
+                .overlay {
+                    Circle().stroke(.white.opacity(0.65), lineWidth: 1)
+                        .frame(width: min(side / 3, 54), height: min(side / 3, 54))
+                        .overlay(Circle().fill(.white).frame(width: 4, height: 4))
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .accessibilityHidden(true)
+        .allowsHitTesting(false)
     }
 
     private func roundIcon(_ name: String) -> some View { Image(systemName: name).font(.title3.bold()).foregroundStyle(.white).frame(width: 45, height: 45).background(.black.opacity(0.42)).clipShape(Circle()) }

@@ -31,30 +31,71 @@ struct DemoAvatar: View {
     }
 }
 
+enum CYFAppearance: String, CaseIterable, Identifiable {
+    case light, dark, system
+
+    static let storageKey = "cyf.appearance"
+    var id: Self { self }
+
+    var title: String {
+        switch self {
+        case .light: "Claro"
+        case .dark: "Escuro"
+        case .system: "Sistema"
+        }
+    }
+
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .light: .light
+        case .dark: .dark
+        case .system: nil
+        }
+    }
+}
+
 enum CYFColor {
-    static let ink = Color(red: 0.094, green: 0.137, blue: 0.110)
-    static let muted = Color(red: 0.306, green: 0.341, blue: 0.318)
-    static let soft = Color(red: 0.945, green: 0.949, blue: 0.925)
-    static let paper = Color(red: 0.980, green: 0.984, blue: 0.969)
-    static let line = Color(red: 0.855, green: 0.867, blue: 0.839)
-    static let lineStrong = Color(red: 0.749, green: 0.780, blue: 0.753)
-    static let green = Color(red: 0.051, green: 0.420, blue: 0.251)
-    static let greenDark = Color(red: 0.031, green: 0.306, blue: 0.188)
-    static let greenSoft = Color(red: 0.898, green: 0.949, blue: 0.914)
-    static let orange = Color(red: 0.914, green: 0.306, blue: 0.043)
-    static let orangeDark = Color(red: 0.722, green: 0.227, blue: 0.031)
-    static let orangeSoft = Color(red: 0.992, green: 0.906, blue: 0.867)
-    static let yellow = Color(red: 0.949, green: 0.722, blue: 0.086)
-    static let red = Color(red: 0.851, green: 0.204, blue: 0.169)
+    static let ink = adaptive(0x142C22, 0xF1F8F3)
+    static let muted = adaptive(0x40594B, 0xB7CABE)
+    static let paper = adaptive(0xEAF3ED, 0x10261D)
+    static let surface = adaptive(0xFCFDFB, 0x1B3529)
+    static let soft = adaptive(0xE3EFE6, 0x284235)
+    static let line = adaptive(0xCDDFD3, 0x395649)
+    static let lineStrong = adaptive(0x8DAA98, 0x749584)
+    static let green = adaptive(0x176643, 0x8FE1B0)
+    static let greenDark = adaptive(0x0B4A33, 0xB0EAC7)
+    static let greenSoft = adaptive(0xD8ECDF, 0x284F3A)
+    static let forest = Color(uiColor: rgb(0x0B4A33))
+    static let forestDeep = Color(uiColor: rgb(0x082B20))
+    static let orange = Color(uiColor: rgb(0xB94513))
+    static let orangeDark = adaptive(0x9D370D, 0xFFB982)
+    static let orangeSoft = adaptive(0xFFE7D5, 0x53331F)
+    static let yellow = Color(uiColor: rgb(0xEAB43C))
+    static let red = adaptive(0xB83028, 0xFF8D7F)
+
+    private static func adaptive(_ light: UInt32, _ dark: UInt32) -> Color {
+        Color(uiColor: UIColor { traits in
+            rgb(traits.userInterfaceStyle == .dark ? dark : light)
+        })
+    }
+
+    private static func rgb(_ hex: UInt32) -> UIColor {
+        UIColor(
+            red: CGFloat((hex >> 16) & 255) / 255,
+            green: CGFloat((hex >> 8) & 255) / 255,
+            blue: CGFloat(hex & 255) / 255,
+            alpha: 1
+        )
+    }
 }
 
 struct CardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
-            .background(Color.white)
+            .background(CYFColor.surface)
             .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 22, style: .continuous).stroke(CYFColor.line, lineWidth: 1))
-            .shadow(color: Color.black.opacity(0.08), radius: 14, y: 7)
+            .shadow(color: Color.black.opacity(0.06), radius: 8, y: 3)
     }
 }
 
@@ -65,19 +106,18 @@ extension View {
 struct SectionEyebrow: View {
     let text: String
     var body: some View {
-        Text(text.uppercased())
-            .font(.system(size: 11, weight: .heavy))
-            .tracking(1.2)
+        Text(text)
+            .font(.footnote.weight(.semibold))
             .foregroundStyle(CYFColor.greenDark)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 
 struct PillButtonStyle: ButtonStyle {
-    var color = CYFColor.green
+    var color = CYFColor.forest
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 15, weight: .bold))
+            .font(.body.weight(.semibold))
             .foregroundStyle(.white)
             .frame(maxWidth: .infinity, minHeight: 54)
             .background(color.opacity(configuration.isPressed ? 0.78 : 1))
