@@ -36,8 +36,8 @@ struct AccountScreen: View {
 
     private var profileHero: some View {
         HStack(spacing: 14) {
-            Image(store.session?.role == .admin ? "profile-admin-v2" : "profile-operator")
-                .resizable().scaledToFill().frame(width: 74, height: 74).clipShape(Circle()).overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 2))
+            DemoAvatar(role: store.session?.role ?? .inspection, size: 74)
+                .overlay(Circle().stroke(Color.white.opacity(0.5), lineWidth: 2))
             VStack(alignment: .leading, spacing: 3) {
                 Text(greeting + ",").font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.76))
                 Text(store.session?.name ?? "Marcos Oliveira").font(.title3.bold()).foregroundStyle(.white)
@@ -74,8 +74,7 @@ private struct SettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 18) {
-                    Image(store.session?.role == .admin ? "profile-admin-v2" : "profile-operator")
-                        .resizable().scaledToFill().frame(width: 94, height: 94).clipShape(Circle())
+                    DemoAvatar(role: store.session?.role ?? .inspection, size: 94)
                     Text(store.session?.name ?? "").font(.title2.bold())
                     Text(store.session?.role.title ?? "").foregroundStyle(CYFColor.muted)
                     SectionEyebrow(text: "Dados da conta")

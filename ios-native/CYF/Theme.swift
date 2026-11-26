@@ -1,4 +1,35 @@
 import SwiftUI
+import UIKit
+
+struct DemoAvatar: View {
+    let role: UserRole
+    let size: CGFloat
+
+    private static let portraits: [UserRole: UIImage] = {
+        let files: [(UserRole, String)] = [(.inspection, "profile-operator"), (.admin, "profile-admin-v2")]
+        return Dictionary(uniqueKeysWithValues: files.compactMap { role, name in
+            let url = Bundle.main.url(forResource: name, withExtension: "png")
+                ?? Bundle.main.url(forResource: name, withExtension: "png", subdirectory: "Resources")
+            guard let url,
+                  let photo = UIImage(contentsOfFile: url.path) else { return nil }
+            return (role, photo)
+        })
+    }()
+
+    var body: some View {
+        Group {
+            if let photo = Self.portraits[role] {
+                Image(uiImage: photo).resizable().scaledToFill()
+            } else {
+                Image(systemName: "person.crop.circle.fill").resizable().scaledToFit()
+                    .foregroundStyle(CYFColor.green)
+            }
+        }
+        .frame(width: size, height: size)
+        .clipShape(Circle())
+        .accessibilityHidden(true)
+    }
+}
 
 enum CYFColor {
     static let ink = Color(red: 0.094, green: 0.137, blue: 0.110)

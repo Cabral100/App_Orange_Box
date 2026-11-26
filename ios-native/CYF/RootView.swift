@@ -19,16 +19,80 @@ struct RootView: View {
 
     private var appTabs: some View {
         TabView(selection: $store.selectedTab) {
-            MapScreen().tag(AppTab.map).tabItem { Label("Mapa", systemImage: "map") }
-            HistoryScreen().tag(AppTab.history).tabItem { Label("Histórico", systemImage: "clock.arrow.circlepath") }
-            CameraScreen().tag(AppTab.camera).tabItem { Label("Câmera", systemImage: "camera.fill") }
+            MapScreen().toolbar(.hidden, for: .tabBar).tag(AppTab.map)
+            HistoryScreen().toolbar(.hidden, for: .tabBar).tag(AppTab.history)
+            CameraScreen().tag(AppTab.camera)
             if store.session?.role == .admin {
-                DashboardScreen().tag(AppTab.dashboard).tabItem { Label("Relatórios", systemImage: "chart.pie.fill") }
+                DashboardScreen().toolbar(.hidden, for: .tabBar).tag(AppTab.dashboard)
             }
-            AccountScreen().tag(AppTab.account).tabItem { Label("Conta", systemImage: "person.crop.circle") }
+            AccountScreen().toolbar(.hidden, for: .tabBar).tag(AppTab.account)
         }
-        .toolbarBackground(.visible, for: .tabBar)
-        .toolbarBackground(Color.white, for: .tabBar)
+        .toolbar(.hidden, for: .tabBar)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if store.selectedTab != .camera {
+                tabBar
+            }
+        }
+    }
+
+    private var tabBar: some View {
+        HStack(spacing: 2) {
+            HStack(spacing: 0) {
+                tab(.map, title: "Mapa", icon: "map")
+                tab(.history, title: "Histórico", icon: "clock.arrow.circlepath")
+            }.frame(maxWidth: .infinity)
+
+            tab(.camera, title: "Câmera", icon: "camera.fill")
+                .frame(width: 68)
+                .zIndex(1)
+
+            HStack(spacing: 0) {
+                if store.session?.role == .admin {
+                    tab(.dashboard, title: "Relatórios", icon: "chart.pie")
+                }
+                tab(.account, title: "Conta", icon: "person.crop.circle")
+            }.frame(maxWidth: .infinity)
+        }
+        .padding(.horizontal, 8).padding(.top, 8).padding(.bottom, 4)
+        .background {
+            Color.white.ignoresSafeArea(edges: .bottom)
+                .shadow(color: CYFColor.greenDark.opacity(0.1), radius: 12, y: -4)
+        }
+        .overlay(alignment: .top) { Rectangle().fill(CYFColor.line).frame(height: 1).allowsHitTesting(false) }
+    }
+
+    private func tab(_ destination: AppTab, title: String, icon: String) -> some View {
+        let selected = store.selectedTab == destination
+        let camera = destination == .camera
+        return Button {
+            store.selectedTab = destination
+        } label: {
+            VStack(spacing: 5) {
+                if camera {
+                    Color.clear.frame(width: 54, height: 29)
+                        .overlay(alignment: .bottom) {
+                            Image(systemName: icon)
+                                .font(.system(size: 23, weight: .semibold))
+                                .foregroundStyle(.white)
+                                .frame(width: 54, height: 54)
+                                .background(CYFColor.orange, in: Circle())
+                                .shadow(color: CYFColor.orangeDark.opacity(0.3), radius: 6, y: 4)
+                                .offset(y: -4)
+                        }
+                } else {
+                    Image(systemName: icon).font(.system(size: 20, weight: selected ? .semibold : .regular))
+                        .frame(height: 29)
+                }
+                Text(title).font(.caption2.weight(selected || camera ? .bold : .medium))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .foregroundStyle(selected ? CYFColor.greenDark : CYFColor.muted)
+            .frame(maxWidth: .infinity, minHeight: 48)
+            .contentShape(Rectangle().inset(by: camera ? -15 : 0))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
 

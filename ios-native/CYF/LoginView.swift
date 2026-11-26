@@ -1,3 +1,4 @@
+import AuthenticationServices
 import SwiftUI
 import UIKit
 
@@ -104,19 +105,7 @@ struct LoginView: View {
                 Button(creating ? "Criar acesso local" : "Entrar como \(role.title.lowercased())", action: submit)
                     .buttonStyle(PillButtonStyle())
                 if !creating {
-                    Button { store.login(role: role) } label: {
-                        HStack(spacing: 8) {
-                            Image(systemName: "person.crop.circle.badge.checkmark").accessibilityHidden(true)
-                            VStack(spacing: 2) {
-                                Text("Entrar com Google").font(.subheadline.bold())
-                                Text("Demonstração").font(.caption).foregroundStyle(CYFColor.muted)
-                            }
-                        }
-                        .frame(maxWidth: .infinity, minHeight: 50)
-                        .foregroundStyle(CYFColor.ink)
-                        .background(.white, in: Capsule())
-                        .overlay { Capsule().strokeBorder(CYFColor.lineStrong) }
-                    }.buttonStyle(.plain)
+                    providerOptions
                 }
                 link(creating ? "Já tenho conta de teste" : "Criar conta de teste") { navigate(creating ? .login : .create) }
                 Text("Acesso demonstrativo. Os dados ficam neste aparelho.")
@@ -127,6 +116,28 @@ struct LoginView: View {
         .padding(24)
         .frame(maxWidth: .infinity)
         .background(.white, in: UnevenRoundedRectangle(topLeadingRadius: 28, topTrailingRadius: 28))
+    }
+
+    private var providerOptions: some View {
+        VStack(spacing: 9) {
+            HStack(spacing: 10) {
+                Rectangle().fill(CYFColor.line).frame(height: 1)
+                Text("Acesso social de demonstração").font(.caption).foregroundStyle(CYFColor.muted)
+                Rectangle().fill(CYFColor.line).frame(height: 1)
+            }.padding(.vertical, 4)
+            Button { store.login(role: role) } label: {
+                Label {
+                    Text("Entrar com Google").font(.subheadline.weight(.semibold))
+                } icon: {
+                    Image("GoogleSignInMark").resizable().scaledToFit().frame(width: 19, height: 19)
+                }
+                .frame(maxWidth: .infinity, minHeight: 50)
+                .foregroundStyle(CYFColor.ink)
+                .background(.white, in: RoundedRectangle(cornerRadius: 11))
+                .overlay { RoundedRectangle(cornerRadius: 11).strokeBorder(CYFColor.lineStrong) }
+            }.buttonStyle(.plain)
+            AppleDemoButton { store.login(role: role) }.frame(height: 50)
+        }
     }
 
     private var registrationForm: some View {
@@ -190,8 +201,7 @@ struct LoginView: View {
     private func roleButton(_ option: UserRole) -> some View {
         Button { choose(option) } label: {
             HStack(alignment: .top, spacing: 6) {
-                Image(systemName: role == option ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(CYFColor.green)
+                DemoAvatar(role: option, size: 30)
                 VStack(alignment: .leading, spacing: 3) {
                     Text(option.title).font(.footnote.bold()).foregroundStyle(CYFColor.ink)
                     Text(option == .admin ? "Operação e relatórios" : "Câmera, mapa e histórico")
@@ -251,5 +261,28 @@ struct LoginView: View {
         } else {
             error = "Usuário ou senha incorretos. Toque em Usar conta de teste para preencher os dados."
         }
+    }
+}
+
+private struct AppleDemoButton: UIViewRepresentable {
+    var action: () -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(action: action) }
+
+    func makeUIView(context: Context) -> ASAuthorizationAppleIDButton {
+        let button = ASAuthorizationAppleIDButton(type: .signIn, style: .black)
+        button.cornerRadius = 11
+        button.addTarget(context.coordinator, action: #selector(Coordinator.tapped), for: .touchUpInside)
+        return button
+    }
+
+    func updateUIView(_ button: ASAuthorizationAppleIDButton, context: Context) {
+        context.coordinator.action = action
+    }
+
+    final class Coordinator: NSObject {
+        var action: () -> Void
+        init(action: @escaping () -> Void) { self.action = action }
+        @objc func tapped() { action() }
     }
 }

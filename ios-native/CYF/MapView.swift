@@ -18,6 +18,7 @@ struct MapScreen: View {
     @State private var editingPlotID: UUID?
     @State private var importing = false
     @State private var alertMessage: String?
+    @State private var framedPlots = false
 
     private var visiblePlots: [Plot] {
         store.plots.filter { plot in
@@ -64,7 +65,6 @@ struct MapScreen: View {
             topBar
             VStack { Spacer(); drawingPanel.padding(.horizontal, 14).padding(.bottom, 8) }
         }
-        .toolbar(.visible, for: .tabBar)
         .sheet(isPresented: $filtersOpen) { MapFilterSheet(search: $search, plotFilter: $plotFilter, levelFilter: $levelFilter, plots: store.plots, onFocus: focus) }
         .sheet(isPresented: $help) { MapHelpView() }
         .sheet(item: $selectedPlot) { plot in PlotDetailSheet(plot: plot) { target in
@@ -82,25 +82,60 @@ struct MapScreen: View {
         .onAppear {
             if let location = store.pendingInspection?.location {
                 focus(location.clCoordinate, delta: 0.008)
-            } else {
+            } else if !framedPlots {
                 framePlots()
             }
+        }
+        .onChange(of: store.plots.map(\.id)) { _, _ in
+            if !drawing && store.pendingInspection == nil { framePlots() }
         }
     }
 
     private var topBar: some View {
-        VStack(spacing: 9) {
-            HStack {
-                VStack(alignment: .leading, spacing: 2) { Text("VISÃO GERAL DA LAVOURA").font(.caption2.bold()).tracking(1).foregroundStyle(.white.opacity(0.8)); Text("Visão operacional").font(.headline).foregroundStyle(.white) }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 10) {
+                Image(systemName: "map.fill")
+                    .font(.headline).foregroundStyle(CYFColor.greenDark)
+                    .frame(width: 37, height: 37)
+                    .background(CYFColor.greenSoft, in: RoundedRectangle(cornerRadius: 11))
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Mapa de talhões").font(.headline).foregroundStyle(CYFColor.ink)
+                    Text("\(visiblePlots.count) talhões visíveis").font(.caption).foregroundStyle(CYFColor.muted)
+                }
                 Spacer()
-                VStack(alignment: .trailing) { Text("Total de pragas:").font(.caption2); Text("\(total)").font(.title3.bold()) }.foregroundStyle(.white)
-            }.padding(.horizontal, 15).padding(.vertical, 10).background(CYFColor.green.opacity(0.96)).clipShape(RoundedRectangle(cornerRadius: 17))
+                VStack(alignment: .trailing, spacing: 1) {
+                    Text("\(total)").font(.headline.monospacedDigit()).foregroundStyle(CYFColor.orangeDark)
+                    Text("pragas ativas").font(.caption2.weight(.semibold)).foregroundStyle(CYFColor.muted)
+                }
+            }
+            .padding(10)
+            .background(CYFColor.paper, in: RoundedRectangle(cornerRadius: 16))
             HStack(spacing: 8) {
-                Button { satellite.toggle() } label: { Label(satellite ? "Satélite" : "Mapa", systemImage: "square.3.layers.3d").mapControl() }
+                Button { satellite.toggle() } label: { Label(satellite ? "Mapa" : "Satélite", systemImage: "square.3.layers.3d").mapControl() }
                 Button { filtersOpen = true } label: { Label("Filtros", systemImage: "line.3.horizontal.decrease").mapControl(badge: plotFilter != nil || levelFilter != nil) }
-                Button { help = true } label: { Image(systemName: "info.circle").frame(width: 45, height: 45).background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 14)) }
-            }.frame(maxWidth: .infinity, alignment: .trailing)
+                Button { help = true } label: {
+                    Image(systemName: "info.circle").frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 13))
+                }.accessibilityLabel("Como usar o mapa")
+            }.buttonStyle(.plain)
+            HStack(spacing: 9) {
+                legendEntry("0", color: CYFColor.green)
+                legendEntry("1–20", color: CYFColor.yellow)
+                legendEntry("21+", color: CYFColor.red)
+            }
+            .padding(.horizontal, 10).padding(.vertical, 7)
+            .background(CYFColor.paper, in: Capsule())
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Faixas de pragas por talhão: zero, de uma a vinte, vinte e uma ou mais.")
         }.padding(.horizontal, 12).padding(.top, 4)
+    }
+
+    private func legendEntry(_ label: String, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Circle().fill(color).frame(width: 8, height: 8)
+            Text(label).font(.caption2.weight(.semibold)).foregroundStyle(CYFColor.ink)
+        }
     }
 
     @ViewBuilder private var drawingPanel: some View {
@@ -116,9 +151,19 @@ struct MapScreen: View {
             }.padding(14).cyfCard()
         } else {
             HStack(spacing: 9) {
-                Button { beginDrawing() } label: { Label("Desenhar", systemImage: "pencil.and.outline").frame(maxWidth: .infinity) }.buttonStyle(.borderedProminent).buttonBorderShape(.capsule)
-                Button { importing = true } label: { Label("GeoJSON", systemImage: "doc.badge.plus").frame(maxWidth: .infinity) }.buttonStyle(.bordered).buttonBorderShape(.capsule)
-            }.padding(12).background(.ultraThinMaterial).clipShape(RoundedRectangle(cornerRadius: 20))
+                Button { beginDrawing() } label: {
+                    Label("Desenhar", systemImage: "pencil.and.outline")
+                        .foregroundStyle(.white).frame(minHeight: 44).padding(.horizontal, 13)
+                        .background(CYFColor.greenDark, in: RoundedRectangle(cornerRadius: 13))
+                }
+                Button { importing = true } label: {
+                    Label("Importar GeoJSON", systemImage: "doc.badge.plus")
+                        .foregroundStyle(CYFColor.greenDark).frame(minHeight: 44).padding(.horizontal, 13)
+                        .background(CYFColor.paper, in: RoundedRectangle(cornerRadius: 13))
+                }
+            }
+            .font(.caption.weight(.bold)).buttonStyle(.plain)
+            .shadow(color: .black.opacity(0.2), radius: 6, y: 2)
         }
     }
 
@@ -139,6 +184,7 @@ struct MapScreen: View {
         }
         if !bounds.isNull {
             camera = .rect(bounds.insetBy(dx: -bounds.width * 0.2, dy: -bounds.height * 0.3))
+            framedPlots = true
         }
     }
     private func beginDrawing() { editingPlotID = nil; drawing = true; drawingPoints = []; drawingName = "Novo talhão"; satellite = true }

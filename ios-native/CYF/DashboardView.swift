@@ -37,8 +37,8 @@ struct DashboardScreen: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 17) {
                     AppHeader(
-                        title: "Relatório de campo",
-                        subtitle: "O essencial para decidir a próxima ação.",
+                        title: "Relatórios",
+                        subtitle: "Acompanhe o manejo por período e talhão.",
                         trailing: AnyView(
                             Button(action: exportPDF) {
                                 Image(systemName: "square.and.arrow.up")
@@ -48,7 +48,6 @@ struct DashboardScreen: View {
                         )
                     )
                     filterSummary
-                    Text("Situação agora").font(.title3.bold()).foregroundStyle(CYFColor.ink)
                     hero
                     HStack(spacing: 8) {
                         KPI(value: rows.filter { $0.count > 20 }.count, label: "talhões críticos")
@@ -70,37 +69,120 @@ struct DashboardScreen: View {
     }
 
     private var filterSummary: some View {
-        Button { filtersOpen = true } label: {
-            HStack { Image(systemName: "line.3.horizontal.decrease"); VStack(alignment: .leading) { Text("FILTROS").font(.caption2.bold()); Text(selectedPlotID.flatMap { id in store.plots.first { $0.id == id }?.name } ?? "Todos os talhões · \(days) dias").font(.subheadline.bold()).lineLimit(1) }; Spacer(); Image(systemName: "chevron.right") }
-                .foregroundStyle(CYFColor.greenDark).padding(15).cyfCard()
-        }.buttonStyle(.plain)
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 7) {
+                ForEach([7, 14, 30, 90], id: \.self) { period in
+                    Button { days = period } label: {
+                        Text("\(period) dias").font(.caption.weight(.bold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .foregroundStyle(period == days ? Color.white : CYFColor.greenDark)
+                            .background(period == days ? CYFColor.greenDark : CYFColor.greenSoft, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(period == days ? .isSelected : [])
+                }
+            }
+            Button { filtersOpen = true } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "slider.horizontal.3")
+                    Text(selectedPlotID.flatMap { id in store.plots.first { $0.id == id }?.name } ?? "Todos os talhões")
+                        .lineLimit(1)
+                    Spacer()
+                    Image(systemName: "chevron.right").font(.caption.bold())
+                }
+                .font(.subheadline.bold()).foregroundStyle(CYFColor.greenDark)
+                .frame(minHeight: 44).padding(.horizontal, 12)
+                .background(CYFColor.soft, in: RoundedRectangle(cornerRadius: 12))
+            }.buttonStyle(.plain)
+        }.padding(13).cyfCard()
     }
 
     private var hero: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 3) { Text("Detecções confirmadas").font(.subheadline.weight(.semibold)).foregroundStyle(.white.opacity(0.8)); Text("\(total)").font(.system(size: 46, weight: .black)).foregroundStyle(.white); Text("\(total - previousTotal >= 0 ? "+" : "")\(total - previousTotal) versus período anterior").font(.caption.weight(.semibold)).foregroundStyle(.white.opacity(0.8)) }
-            Spacer(); Image(systemName: total > previousTotal ? "chart.line.uptrend.xyaxis" : "chart.line.downtrend.xyaxis").font(.largeTitle).foregroundStyle(.white).frame(width: 64, height: 64).background(.white.opacity(0.14)).clipShape(Circle())
-        }.padding(20).background(CYFColor.green).clipShape(RoundedRectangle(cornerRadius: 25))
+        let delta = total - previousTotal
+        let scale = max(1, total, previousTotal)
+        return VStack(alignment: .leading, spacing: 14) {
+            HStack(alignment: .top, spacing: 10) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Visão geral").font(.headline).foregroundStyle(CYFColor.greenDark)
+                    Text("\(total)").font(.system(size: 43, weight: .black)).monospacedDigit().foregroundStyle(CYFColor.ink)
+                    Text("Detecções confirmadas").font(.subheadline.weight(.semibold)).foregroundStyle(CYFColor.muted)
+                }
+                Spacer()
+                Text("\(delta > 0 ? "+" : "")\(delta) vs. anterior")
+                    .font(.caption.weight(.bold)).foregroundStyle(CYFColor.orangeDark)
+                    .padding(.horizontal, 9).padding(.vertical, 7)
+                    .background(CYFColor.orangeSoft, in: Capsule())
+            }
+            VStack(spacing: 9) {
+                comparisonBar("Atual", value: total, scale: scale, color: CYFColor.green)
+                comparisonBar("Anterior", value: previousTotal, scale: scale, color: CYFColor.orange)
+            }
+        }.padding(17).cyfCard()
+    }
+
+    private func comparisonBar(_ title: String, value: Int, scale: Int, color: Color) -> some View {
+        HStack(spacing: 9) {
+            Text(title).font(.caption.weight(.semibold)).frame(width: 49, alignment: .leading)
+            GeometryReader { frame in
+                Capsule().fill(CYFColor.soft).overlay(alignment: .leading) {
+                    Capsule().fill(color).frame(width: frame.size.width * CGFloat(value) / CGFloat(scale))
+                }
+            }.frame(height: 8).accessibilityHidden(true)
+            Text("\(value)").font(.caption.bold()).monospacedDigit().frame(minWidth: 25, alignment: .trailing)
+        }
+        .foregroundStyle(CYFColor.ink)
+        .accessibilityElement(children: .combine)
     }
 
     private var pestSection: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            CardTitle(title: "Detecções por talhão", subtitle: "Contagem, inspeções e variação.", icon: "ladybug")
-            if total > 0 {
-                Chart(rows.filter { $0.count > 0 }) { row in
-                    SectorMark(angle: .value("Detecções", row.count), innerRadius: .ratio(0.58), angularInset: 1.4)
-                        .foregroundStyle(by: .value("Talhão", row.plot.name))
+        let chartRows = rows.filter { $0.count > 0 }
+        let palette = [CYFColor.green, CYFColor.orange, CYFColor.yellow, CYFColor.red, CYFColor.greenDark]
+        return VStack(alignment: .leading, spacing: 13) {
+            CardTitle(title: "Distribuição por talhão", subtitle: "Contagem, inspeções e variação.", icon: "chart.pie.fill")
+            if !chartRows.isEmpty {
+                Chart(chartRows.indices, id: \.self) { index in
+                    SectorMark(angle: .value("Detecções", chartRows[index].count), innerRadius: .ratio(0.67), angularInset: 1.4)
+                        .foregroundStyle(palette[index % palette.count])
                         .cornerRadius(3)
-                }.chartLegend(.hidden).frame(height: 210).overlay { VStack { Text("\(total)").font(.title.bold()); Text("DETECÇÕES").font(.caption2.bold()).foregroundStyle(CYFColor.muted) } }
+                }
+                .chartLegend(.hidden).frame(height: 178).accessibilityHidden(true)
+                .overlay {
+                    VStack(spacing: 2) {
+                        Text("\(total)").font(.title.bold()).foregroundStyle(CYFColor.ink)
+                        Text("detecções").font(.caption.weight(.semibold)).foregroundStyle(CYFColor.muted)
+                    }
+                }
+            } else {
+                Text("Nenhuma detecção no período.").font(.subheadline).foregroundStyle(CYFColor.muted)
             }
             ForEach(visibleRows) { row in
+                let colorIndex = chartRows.firstIndex { $0.id == row.id }
                 HStack(spacing: 10) {
-                    RoundedRectangle(cornerRadius: 2).fill(severityColor(row.count)).frame(width: 5, height: 42)
-                    VStack(alignment: .leading) { Text(row.plot.name).font(.subheadline.bold()).lineLimit(1); Text("\(row.photos) inspeção(ões) · \(severityLabel(row.count))").font(.caption).foregroundStyle(CYFColor.muted) }
-                    Spacer(); VStack(alignment: .trailing) { Text("\(row.count)").font(.headline); Text("\(row.delta >= 0 ? "+" : "")\(row.delta)").font(.caption.bold()).foregroundStyle(row.delta > 0 ? CYFColor.red : CYFColor.green) }
+                    Circle()
+                        .fill(colorIndex.map { palette[$0 % palette.count] } ?? CYFColor.lineStrong)
+                        .frame(width: 9, height: 9).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(row.plot.name).font(.subheadline.bold())
+                        Text("\(row.photos) vistoria(s) · \(row.photos == 0 ? "Sem vistoria" : severityLabel(row.count))")
+                            .font(.caption).foregroundStyle(CYFColor.muted)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text("\(row.count)").font(.headline.monospacedDigit())
+                        Text("\(row.delta > 0 ? "+" : "")\(row.delta)")
+                            .font(.caption.bold()).foregroundStyle(row.delta > 0 ? CYFColor.red : CYFColor.green)
+                            .accessibilityLabel("Variação de \(row.delta) detecções")
+                    }
                 }
+                .padding(10)
+                .background(CYFColor.paper, in: RoundedRectangle(cornerRadius: 12))
             }
-            if rows.count > 4 { Button(expanded ? "Reduzir extrato" : "Aumentar visão do extrato") { withAnimation { expanded.toggle() } }.font(.subheadline.bold()).frame(maxWidth: .infinity) }
+            if rows.count > 4 {
+                Button(expanded ? "Mostrar menos talhões" : "Mostrar todos os talhões") {
+                    withAnimation { expanded.toggle() }
+                }
+                .font(.subheadline.bold()).frame(maxWidth: .infinity, minHeight: 44)
+            }
         }.padding(17).cyfCard()
     }
 
@@ -135,7 +217,6 @@ struct DashboardScreen: View {
     private var trapPlots: [Plot] { store.plots.filter { $0.trapMonitoring != nil && (selectedPlotID == nil || $0.id == selectedPlotID) } }
     private var reentryBlocked: [Plot] { sprayPlots.filter { plot in guard let spray = plot.sprayApplication else { return false }; return Calendar.current.date(byAdding: .hour, value: spray.reentryHours, to: spray.appliedAt)! > Date() } }
     private var dueInspections: [Plot] { sprayPlots.filter { plot in guard let spray = plot.sprayApplication else { return false }; return Calendar.current.date(byAdding: .day, value: spray.nextInspectionDays, to: spray.appliedAt)! <= Date() } }
-    private func severityColor(_ count: Int) -> Color { count == 0 ? CYFColor.green : count <= 20 ? CYFColor.yellow : CYFColor.red }
     private func severityLabel(_ count: Int) -> String { count == 0 ? "Sem ocorrência" : count <= 20 ? "Atenção" : "Crítico" }
     private func exportPDF() { do { reportURL = try PDFReportService.generate(records: filteredRecords, plots: store.plots, rows: rows, from: range.0, to: range.1, imageURL: store.imageURL) } catch { reportError = error.localizedDescription } }
 }
