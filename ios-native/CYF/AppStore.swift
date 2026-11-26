@@ -23,10 +23,15 @@ final class AppStore: ObservableObject {
     var pendingInspection: InspectionRecord? { records.first { $0.id == pendingInspectionID } }
 
     func login(role: UserRole) {
-        session = role == .admin
+        let demo = role == .admin
             ? Session(name: "Fernanda Almeida", email: "fernanda.almeida@cyf.app", role: .admin)
             : Session(name: "Marcos Oliveira", email: "inspecao@cyf.app", role: .inspection)
-        selectedTab = role == .admin ? .dashboard : .camera
+        login(session: demo)
+    }
+
+    func login(session: Session) {
+        self.session = session
+        selectedTab = session.role == .admin ? .dashboard : .camera
         persist()
     }
 

@@ -9,12 +9,13 @@ import { listDetections, listPlots } from "./lib/db";
 const SESSION_KEY = "cyf.mock.session";
 const LEGACY_SESSION_KEY = "orangebox.mock.session";
 
-const tabs = [
-  { id: "map", label: "Mapa", icon: "map" },
-  { id: "camera", label: "Câmera", icon: "camera", primary: true },
-  { id: "records", label: "Relatórios", icon: "book" },
-  { id: "profile", label: "Conta", icon: "profile" },
-];
+const mapTab = { id: "map", label: "Mapa", icon: "map" };
+const cameraTab = { id: "camera", label: "Câmera", icon: "camera", primary: true };
+const historyTab = { id: "records", label: "Histórico", icon: "book" };
+const reportsTab = { id: "reports", label: "Relatórios", icon: "reports" };
+const profileTab = { id: "profile", label: "Conta", icon: "profile" };
+const inspectionTabs = [mapTab, cameraTab, historyTab, profileTab];
+const adminTabs = [mapTab, historyTab, cameraTab, reportsTab, profileTab];
 
 function NavIcon({ name }) {
   if (name === "map") {
@@ -41,6 +42,9 @@ function NavIcon({ name }) {
       </svg>
     );
   }
+  if (name === "reports") {
+    return <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v9l7.5 4.5A9 9 0 1 1 12 3.5Z" /><path d="M15.5 3.8v6.9l5.9 3.5a8.7 8.7 0 0 0-5.9-10.4Z" /></svg>;
+  }
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <circle cx="12" cy="8" r="3.5" />
@@ -63,7 +67,7 @@ function readSession() {
 
 export default function App() {
   const [session, setSession] = useState(readSession);
-  const [activeTab, setActiveTab] = useState("camera");
+  const [activeTab, setActiveTab] = useState(() => session?.role === "admin" ? "reports" : "camera");
   const [records, setRecords] = useState([]);
   const [plots, setPlots] = useState([]);
   const [toast, setToast] = useState(null);
@@ -94,6 +98,7 @@ export default function App() {
     storage.setItem(SESSION_KEY, JSON.stringify(account));
     localStorage.removeItem(LEGACY_SESSION_KEY);
     setSession(account);
+    setActiveTab(account.role === "admin" ? "reports" : "camera");
   }
 
   function logout() {
@@ -105,6 +110,8 @@ export default function App() {
   }
 
   if (!session) return <LoginScreen onLogin={login} />;
+  const isAdmin = session.role === "admin";
+  const availableTabs = isAdmin ? adminTabs : inspectionTabs;
 
   return (
     <div className={`mobile-app view-${activeTab}`}>
@@ -126,8 +133,10 @@ export default function App() {
             notify={setToast}
           />
         )}
-        {activeTab === "records" && (
+        {(activeTab === "records" || (activeTab === "reports" && isAdmin)) && (
           <RecordsScreen
+            key={activeTab}
+            showReport={activeTab === "reports"}
             records={records}
             plots={plots}
             onChanged={refreshData}
@@ -140,8 +149,8 @@ export default function App() {
         )}
       </main>
 
-      <nav className="bottom-nav" aria-label="Navegação principal">
-        {tabs.map(({ id, label, icon, primary }) => (
+      <nav className={`bottom-nav${isAdmin ? " bottom-nav-admin" : ""}`} aria-label="Navegação principal">
+        {availableTabs.map(({ id, label, icon, primary }) => (
           <button
             className={`nav-button ${activeTab === id ? "active" : ""} ${primary ? "nav-primary" : ""}`}
             key={id}

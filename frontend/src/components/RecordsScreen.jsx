@@ -68,14 +68,26 @@ function recordsGeoJson(records, plots) {
   };
 }
 
-function DashboardPreview({ report }) {
+function buildExampleReport(from, to) {
+  const plots = ["Talhão Norte", "Talhão Central", "Talhão Sul", "Talhão Leste"].map((name, index) => ({ id: `example-${index}`, name }));
+  const start = new Date(`${from}T00:00:00`).getTime();
+  const end = new Date(`${to}T23:59:59.999`).getTime();
+  const records = [3, 1, 12, 8, 0, 17, 4].map((count, index) => ({
+    manualPlotId: plots[index === 4 ? 2 : index % 2].id,
+    capturedAt: new Date(start + (end - start) * (index + 0.5) / 7).toISOString(),
+    detections: Array.from({ length: count }, () => ({ confidence: 0.96 })),
+  }));
+  return buildReport(records, plots, from, to);
+}
+
+function DashboardPreview({ report, example }) {
   const maxCount = Math.max(1, ...report.rows.flatMap((row) => [row.count, row.previousCount]));
 
   return (
     <section className="dashboard-preview" aria-labelledby="dashboard-preview-title">
       <div className="dashboard-preview-heading">
         <div><p className="overline">DASHBOARD</p><h2 id="dashboard-preview-title">Visão do período</h2></div>
-        <span>Atual × anterior</span>
+        <span>{example ? "Dados ilustrativos" : "Atual × anterior"}</span>
       </div>
       <div className="dashboard-preview-kpis" aria-label="Resumo do dashboard">
         <article><strong>{report.total}</strong><span>atual</span></article>
@@ -111,14 +123,17 @@ function DashboardPreview({ report }) {
   );
 }
 
-export default function RecordsScreen({ records, plots, onChanged, onOpenCamera, notify }) {
+export default function RecordsScreen({ records, plots, onChanged, onOpenCamera, notify, showReport }) {
   const initialPeriod = useMemo(defaultPeriod, []);
   const [from, setFrom] = useState(initialPeriod.from);
   const [to, setTo] = useState(initialPeriod.to);
   const [plotFilter, setPlotFilter] = useState("all");
+  const [showExample, setShowExample] = useState(false);
   const [selected, setSelected] = useState(null);
   const detailCloseRef = useRef(null);
   const report = useMemo(() => buildReport(records, plots, from, to), [from, plots, records, to]);
+  const canShowExample = !records.length && !plots.length;
+  const showingExample = canShowExample && showExample;
   const filtered = useMemo(() => records.filter((record) => {
     if (!inPeriod(record, report.currentBounds.start, report.currentBounds.end)) return false;
     const plot = recordPlot(record, plots);
@@ -239,11 +254,11 @@ export default function RecordsScreen({ records, plots, onChanged, onOpenCamera,
   return (
     <section className="content-screen reports-screen">
       <header className="reports-header">
-        <div><p className="overline">DADOS REAIS DE CAMPO</p><h1>Relatórios</h1></div>
-        <span className="report-period-label">Comparação automática</span>
+        <div><p className="overline">DADOS REAIS DE CAMPO</p><h1>{showReport ? "Relatórios" : "Histórico"}</h1></div>
+        {showReport && <span className="report-period-label">Atual × anterior</span>}
       </header>
 
-      <section className="period-card" aria-label="Período do relatório">
+      <section className="period-card" aria-label={showReport ? "Período do relatório" : "Período do histórico"}>
         <label>Data inicial<input type="date" value={from} max={to} onChange={(event) => changeFrom(event.target.value)} /></label>
         <label>Data final<input type="date" value={to} min={from} onChange={(event) => changeTo(event.target.value)} /></label>
         <label className="plot-filter">Filtrar as fotos por talhão<select value={plotFilter} onChange={(event) => setPlotFilter(event.target.value)}>
@@ -251,65 +266,72 @@ export default function RecordsScreen({ records, plots, onChanged, onOpenCamera,
           {plots.map((plot) => <option key={plot.id} value={plot.id}>{plot.name}</option>)}
           <option value="unassigned">Sem talhão confirmado</option>
         </select></label>
-        <small className="plot-filter-note">Este filtro afeta as evidências e o GeoJSON. O dashboard, CSV e PDF continuam mostrando toda a propriedade.</small>
+        {showReport && <small className="plot-filter-note">Este filtro afeta as evidências e o GeoJSON. O dashboard, CSV e PDF continuam mostrando toda a propriedade.</small>}
       </section>
 
-      <section className="report-overview">
-        <article className="metric-primary">
-          <span>Pragas no período</span>
-          <strong>{report.total}</strong>
-          <small className={report.delta > 0 ? "trend-up" : report.delta < 0 ? "trend-down" : ""}>
-            {formatChange(report.delta, report.percent)} em relação ao período anterior
-          </small>
-        </article>
-        <div className="metric-pair">
-          <article><strong>{report.photos}</strong><span>fotos salvas</span></article>
-          <article><strong>{report.unassigned}</strong><span>pragas sem talhão</span></article>
-        </div>
-      </section>
-
-      <section className="change-highlights">
-        <article>
-          <span>Maior aumento absoluto</span>
-          <strong>{report.increased?.plot.name || "Nenhum aumento"}</strong>
-          <small>{report.increased ? `+${report.increased.delta} pragas` : "Sem alta no período"}</small>
-        </article>
-        <article>
-          <span>Maior redução absoluta</span>
-          <strong>{report.decreased?.plot.name || "Nenhuma redução"}</strong>
-          <small>{report.decreased ? `${report.decreased.delta} pragas` : "Sem queda no período"}</small>
-        </article>
-      </section>
-
-      <DashboardPreview report={report} />
-
-      <section className="report-section">
-        <div className="section-heading"><div><p className="overline">POR TALHÃO</p><h2>Contagem e tendência</h2></div></div>
-        {plots.length === 0 ? (
-          <p className="inline-empty">Adicione limites de talhões no mapa para gerar a comparação por área.</p>
-        ) : (
-          <div className="plot-report-table" role="table" aria-label="Contagem e tendência por talhão">
-            <div className="plot-report-head" role="row"><span role="columnheader">Talhão</span><span role="columnheader">Atual</span><span role="columnheader">Variação</span></div>
-            {report.rows.map((row) => (
-              <div className="plot-report-row" role="row" key={row.plot.id}>
-                <span role="cell"><i style={{ background: row.severity.color }} /> <b>{row.plot.name}</b><small>{row.severity.label}</small></span>
-                <strong role="cell">{row.count}</strong>
-                <em role="cell" className={row.delta > 0 ? "trend-up" : row.delta < 0 ? "trend-down" : ""}>{formatChange(row.delta, row.percent)}</em>
-              </div>
-            ))}
+      {showReport && <>
+        <section className="report-overview">
+          <article className="metric-primary">
+            <span>Pragas no período</span>
+            <strong>{report.total}</strong>
+            <small className={report.delta > 0 ? "trend-up" : report.delta < 0 ? "trend-down" : ""}>
+              {formatChange(report.delta, report.percent)} em relação ao período anterior
+            </small>
+          </article>
+          <div className="metric-pair">
+            <article><strong>{report.photos}</strong><span>fotos salvas</span></article>
+            <article><strong>{report.unassigned}</strong><span>pragas sem talhão</span></article>
           </div>
-        )}
-        <p className="metric-definition">Métrica: quantidade de caixas com confiança do modelo ≥95% nas fotos salvas, não área infestada. “0” significa sem registro no período, não ausência comprovada de praga.</p>
-      </section>
+        </section>
 
-      <section className="export-card">
-        <div><p className="overline">EXTRAÇÃO</p><h2>Leve os dados para análise</h2><p>Exporte o dashboard visual em PDF, a planilha completa em CSV ou os pontos localizados em GeoJSON.</p></div>
-        <div className="export-actions">
-          <button className="dashboard-export-action" type="button" onClick={exportDashboard}>Imprimir / salvar dashboard em PDF</button>
-          <button className="primary-action" type="button" onClick={exportCsv}>Baixar CSV</button>
-          <button className="secondary-action" type="button" onClick={exportGeoJson} disabled={!filtered.some((record) => record.location)}>Baixar GeoJSON</button>
-        </div>
-      </section>
+        <section className="change-highlights">
+          <article>
+            <span>Maior aumento absoluto</span>
+            <strong>{report.increased?.plot.name || "Nenhum aumento"}</strong>
+            <small>{report.increased ? `+${report.increased.delta} pragas` : "Sem alta no período"}</small>
+          </article>
+          <article>
+            <span>Maior redução absoluta</span>
+            <strong>{report.decreased?.plot.name || "Nenhuma redução"}</strong>
+            <small>{report.decreased ? `${report.decreased.delta} pragas` : "Sem queda no período"}</small>
+          </article>
+        </section>
+
+        {canShowExample && (
+          <button className="secondary-action dashboard-example-toggle" type="button" onClick={() => setShowExample(!showExample)}>
+            {showingExample ? "Voltar aos meus dados" : "Ver exemplo com dados ilustrativos"}
+          </button>
+        )}
+        <DashboardPreview report={showingExample ? buildExampleReport(from, to) : report} example={showingExample} />
+
+        <section className="report-section">
+          <div className="section-heading"><div><p className="overline">POR TALHÃO</p><h2>Contagem e tendência</h2></div></div>
+          {plots.length === 0 ? (
+            <p className="inline-empty">Adicione limites de talhões no mapa para gerar a comparação por área.</p>
+          ) : (
+            <div className="plot-report-table" role="table" aria-label="Contagem e tendência por talhão">
+              <div className="plot-report-head" role="row"><span role="columnheader">Talhão</span><span role="columnheader">Atual</span><span role="columnheader">Variação</span></div>
+              {report.rows.map((row) => (
+                <div className="plot-report-row" role="row" key={row.plot.id}>
+                  <span role="cell"><i style={{ background: row.severity.color }} /> <b>{row.plot.name}</b><small>{row.severity.label}</small></span>
+                  <strong role="cell">{row.count}</strong>
+                  <em role="cell" className={row.delta > 0 ? "trend-up" : row.delta < 0 ? "trend-down" : ""}>{formatChange(row.delta, row.percent)}</em>
+                </div>
+              ))}
+            </div>
+          )}
+          <p className="metric-definition">Métrica: quantidade de caixas com confiança do modelo ≥95% nas fotos salvas, não área infestada. “0” significa sem registro no período, não ausência comprovada de praga.</p>
+        </section>
+
+        <section className="export-card">
+          <div><p className="overline">EXTRAÇÃO</p><h2>Leve os dados para análise</h2><p>Exporte o dashboard visual em PDF, a planilha completa em CSV ou os pontos localizados em GeoJSON.</p></div>
+          <div className="export-actions">
+            <button className="dashboard-export-action" type="button" onClick={exportDashboard}>Imprimir / salvar dashboard em PDF</button>
+            <button className="primary-action" type="button" onClick={exportCsv}>Baixar CSV</button>
+            <button className="secondary-action" type="button" onClick={exportGeoJson} disabled={!filtered.some((record) => record.location)}>Baixar GeoJSON</button>
+          </div>
+        </section>
+      </>}
 
       <section className="report-section records-section">
         <div className="section-heading">

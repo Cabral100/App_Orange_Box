@@ -79,7 +79,13 @@ struct MapScreen: View {
         .sheet(isPresented: Binding(get: { store.pendingInspection != nil && !drawing }, set: { if !$0 { store.pendingInspectionID = nil } })) { PendingPlotSheet(onDraw: beginPendingDrawing) }
         .fileImporter(isPresented: $importing, allowedContentTypes: [.json, UTType(filenameExtension: "geojson") ?? .data]) { result in importGeoJSON(result) }
         .alert("Mapa", isPresented: Binding(get: { alertMessage != nil }, set: { if !$0 { alertMessage = nil } })) { Button("OK") { alertMessage = nil } } message: { Text(alertMessage ?? "") }
-        .onAppear { if let location = store.pendingInspection?.location { focus(location.clCoordinate, delta: 0.008) } }
+        .onAppear {
+            if let location = store.pendingInspection?.location {
+                focus(location.clCoordinate, delta: 0.008)
+            } else {
+                framePlots()
+            }
+        }
     }
 
     private var topBar: some View {
@@ -121,6 +127,20 @@ struct MapScreen: View {
     }
     private func focus(_ plot: Plot) { plotFilter = plot.id; levelFilter = nil; focus(GeoService.centroid(plot), delta: 0.009); filtersOpen = false }
     private func focus(_ coordinate: CLLocationCoordinate2D, delta: Double) { withAnimation { camera = .region(.init(center: coordinate, span: .init(latitudeDelta: delta, longitudeDelta: delta))) } }
+    private func framePlots() {
+        var bounds = MKMapRect.null
+        for plot in visiblePlots {
+            for polygon in plot.geometry.polygons {
+                for coordinate in polygon.first ?? [] {
+                    let point = MKMapPoint(coordinate.clCoordinate)
+                    bounds = bounds.union(MKMapRect(x: point.x, y: point.y, width: 1, height: 1))
+                }
+            }
+        }
+        if !bounds.isNull {
+            camera = .rect(bounds.insetBy(dx: -bounds.width * 0.2, dy: -bounds.height * 0.3))
+        }
+    }
     private func beginDrawing() { editingPlotID = nil; drawing = true; drawingPoints = []; drawingName = "Novo talhão"; satellite = true }
     private func beginPendingDrawing() { guard let record = store.pendingInspection else { return }; store.drawForInspectionID = record.id; store.pendingInspectionID = nil; drawing = true; drawingPoints = record.location.map { [$0.clCoordinate] } ?? []; drawingName = "Talhão da inspeção"; satellite = true }
     private func cancelDrawing() { drawing = false; drawingPoints = []; editingPlotID = nil; store.drawForInspectionID = nil }

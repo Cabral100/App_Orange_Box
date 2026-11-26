@@ -1,5 +1,5 @@
-const CACHE = "cyf-v5";
-const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/fonts/Inter-latin.woff2"];
+const CACHE = "cyf-v6";
+const SHELL = ["/", "/manifest.webmanifest", "/icon.svg", "/fonts/Inter-latin.woff2", "/citrus-cover.jpg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));

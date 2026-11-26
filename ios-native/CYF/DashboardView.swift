@@ -36,7 +36,17 @@ struct DashboardScreen: View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 17) {
-                    AppHeader(title: "Relatório de campo", subtitle: "O essencial para decidir a próxima ação.")
+                    AppHeader(
+                        title: "Relatório de campo",
+                        subtitle: "O essencial para decidir a próxima ação.",
+                        trailing: AnyView(
+                            Button(action: exportPDF) {
+                                Image(systemName: "square.and.arrow.up")
+                                    .frame(width: 44, height: 44)
+                                    .background(CYFColor.greenSoft, in: RoundedRectangle(cornerRadius: 13))
+                            }.accessibilityLabel("Compartilhar relatório em PDF")
+                        )
+                    )
                     filterSummary
                     Text("Situação agora").font(.title3.bold()).foregroundStyle(CYFColor.ink)
                     hero

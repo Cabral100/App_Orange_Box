@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { latLngBounds } from "leaflet";
 import {
   Circle,
   CircleMarker,
@@ -41,8 +42,26 @@ function MapTapHandler({ active, onPoint }) {
   return null;
 }
 
-function MapController({ target }) {
+function MapController({ plots, target }) {
   const map = useMap();
+  const lastFramed = useRef("");
+
+  useEffect(() => {
+    const ids = JSON.stringify(plots.map((plot) => plot.id).sort());
+    if (ids === lastFramed.current) return;
+    lastFramed.current = ids;
+    if (!plots.length) return;
+    const bounds = latLngBounds([]);
+    for (const { geometry } of plots) {
+      const positions = geometryToLatLngs(geometry);
+      const points = geometry.type === "MultiPolygon" ? positions.flat(2) : positions.flat();
+      for (const point of points) bounds.extend(point);
+    }
+    if (bounds.isValid()) {
+      map.fitBounds(bounds, { paddingTopLeft: [18, 170], paddingBottomRight: [18, 155], maxZoom: 18, animate: false });
+    }
+  }, [map, plots]);
+
   useEffect(() => {
     if (target) map.flyTo([target.latitude, target.longitude], Math.max(map.getZoom(), 18), { duration: 0.7 });
   }, [map, target]);
@@ -79,13 +98,14 @@ export default function MapScreen({ records, plots, onPlotsChanged, notify }) {
   const [to, setTo] = useState(initialPeriod.to);
   const [baseLayer, setBaseLayer] = useState("satellite");
   const [currentLocation, setCurrentLocation] = useState(null);
+  const [locationTarget, setLocationTarget] = useState(null);
   const [locationError, setLocationError] = useState("");
   const [drawMode, setDrawMode] = useState(false);
   const [draftPoints, setDraftPoints] = useState([]);
   const [pendingGeometry, setPendingGeometry] = useState(null);
   const [plotName, setPlotName] = useState("");
   const [selectedPlot, setSelectedPlot] = useState(null);
-  const [sheetOpen, setSheetOpen] = useState(true);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpTopic, setHelpTopic] = useState("draw");
   const mappedRecords = useMemo(() => records.filter((record) => record.mapVisible !== false), [records]);
@@ -115,11 +135,13 @@ export default function MapScreen({ records, plots, onPlotsChanged, notify }) {
     setLocationError("");
     try {
       const position = await getCurrentPosition();
-      setCurrentLocation({
+      const nextLocation = {
         latitude: position.coords.latitude,
         longitude: position.coords.longitude,
         accuracy: position.coords.accuracy,
-      });
+      };
+      setCurrentLocation(nextLocation);
+      if (reportError) setLocationTarget(nextLocation);
     } catch (error) {
       setLocationError("GPS indisponível");
       if (reportError) notify({ tone: "danger", message: error.message || "Não foi possível obter o GPS." });
@@ -155,7 +177,6 @@ export default function MapScreen({ records, plots, onPlotsChanged, notify }) {
     await savePlot(plot);
     setPendingGeometry(null);
     setDraftPoints([]);
-    setSheetOpen(true);
     await onPlotsChanged();
     notify({ tone: "success", message: `${plot.name} salvo com limites reais.` });
   }
@@ -221,7 +242,7 @@ export default function MapScreen({ records, plots, onPlotsChanged, notify }) {
     <section className="map-screen">
       <MapContainer center={initialCenter} zoom={plots.length || filteredRecords.length ? 17 : 4} zoomControl={false} className="field-map">
         <MapReady />
-        <MapController target={currentLocation} />
+        <MapController plots={plots} target={locationTarget || (!plots.length ? currentLocation : null)} />
         <MapTapHandler active={drawMode} onPoint={(point) => setDraftPoints((current) => [...current, point])} />
         {baseLayer === "satellite" ? (
           <TileLayer url={SATELLITE_URL} attribution={SATELLITE_ATTRIBUTION} maxZoom={20} />
@@ -242,7 +263,11 @@ export default function MapScreen({ records, plots, onPlotsChanged, notify }) {
                 fillColor: row.severity.color,
                 fillOpacity: selected ? 0.68 : 0.54,
               }}
-              eventHandlers={{ click: () => { setSelectedPlot(plot); setSheetOpen(true); } }}
+              eventHandlers={{ click: () => {
+                if (drawMode) return;
+                setSelectedPlot(plot);
+                setSheetOpen(true);
+              } }}
             >
               <Tooltip direction="center" permanent className="plot-label">{plot.name} · {row.count}</Tooltip>
             </Polygon>
@@ -300,14 +325,25 @@ export default function MapScreen({ records, plots, onPlotsChanged, notify }) {
 
       <div className="map-actions">
         <button type="button" onClick={() => locate(true)}>GPS</button>
-        <button type="button" onClick={() => { setSelectedPlot(null); setSheetOpen(true); }}>Talhões</button>
+        <button type="button" aria-expanded={sheetOpen && !drawMode} onClick={() => {
+          setSelectedPlot(null);
+          setSheetOpen(!sheetOpen || Boolean(selectedPlot));
+        }}>Talhões</button>
       </div>
+
+      <input ref={importRef} hidden type="file" accept=".geojson,.json,application/geo+json,application/json" onChange={importGeoJson} />
+      {!sheetOpen && !drawMode && !pendingGeometry && (
+        <div className="map-plot-toolbar" aria-label="Ações dos talhões">
+          <button className="primary-action" type="button" onClick={beginDraw}>Desenhar</button>
+          <button className="secondary-action" type="button" onClick={() => importRef.current?.click()}>Importar GeoJSON</button>
+        </div>
+      )}
 
       {drawMode && (
         <div className="draw-toolbar">
           <div><strong>Toque nos cantos</strong><span>{draftPoints.length} ponto(s)</span></div>
           <button type="button" onClick={() => setDraftPoints((points) => points.slice(0, -1))} disabled={!draftPoints.length}>Desfazer</button>
-          <button type="button" onClick={() => { setDrawMode(false); setDraftPoints([]); setSheetOpen(true); }}>Cancelar</button>
+          <button type="button" onClick={() => { setDrawMode(false); setDraftPoints([]); setSheetOpen(false); }}>Cancelar</button>
           <button className="draw-confirm" type="button" onClick={finishDraw} disabled={draftPoints.length < 3}>Concluir</button>
         </div>
       )}
@@ -345,7 +381,6 @@ export default function MapScreen({ records, plots, onPlotsChanged, notify }) {
               <div className="sheet-actions two">
                 <button className="primary-action" type="button" onClick={beginDraw}>Desenhar</button>
                 <button className="secondary-action" type="button" onClick={() => importRef.current?.click()}>Importar GeoJSON</button>
-                <input ref={importRef} hidden type="file" accept=".geojson,.json,application/geo+json,application/json" onChange={importGeoJson} />
               </div>
               <button className="map-help-link" type="button" onClick={() => setHelpOpen(true)}>Como adicionar e usar os limites?</button>
               {plots.length > 0 && <button className="text-action" type="button" onClick={() => downloadGeoJson("talhoes-cyf.geojson", plotsToFeatureCollection(plots))}>Exportar todos os limites</button>}
@@ -408,7 +443,7 @@ export default function MapScreen({ records, plots, onPlotsChanged, notify }) {
             <p>O contorno será salvo localmente e usado na próxima captura.</p>
             <label>Nome do talhão<input value={plotName} onChange={(event) => setPlotName(event.target.value)} autoFocus maxLength={80} /></label>
             <div className="dialog-actions">
-              <button className="secondary-action" type="button" onClick={() => { setPendingGeometry(null); setDraftPoints([]); setSheetOpen(true); }}>Cancelar</button>
+              <button className="secondary-action" type="button" onClick={() => { setPendingGeometry(null); setDraftPoints([]); }}>Cancelar</button>
               <button className="primary-action" type="submit">Salvar talhão</button>
             </div>
           </form>
