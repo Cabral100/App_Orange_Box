@@ -38,7 +38,8 @@ final class CameraEngine: ObservableObject {
     func setTorch(_ enabled: Bool) { _ = view?.setTorchMode(enabled) }
 
     func capture() async -> UIImage? {
-        await withCheckedContinuation { continuation in view?.capturePhoto { continuation.resume(returning: $0) } }
+        guard let view else { return nil }
+        return await withCheckedContinuation { continuation in view.capturePhoto { continuation.resume(returning: $0) } }
     }
 
     private func hideChrome(_ view: YOLOView) {

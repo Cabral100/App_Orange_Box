@@ -41,6 +41,21 @@ struct Detection: Codable, Hashable, Identifiable {
     enum CodingKeys: String, CodingKey { case id, classID, className, confidence, box }
 }
 
+enum InspectionConfidence {
+    static let manualMinimum = 0.85
+    static let automaticMinimum = 0.90
+    static let galleryMinimum = 0.95
+
+    static func allowsManualCapture(_ confidence: Double) -> Bool {
+        confidence > manualMinimum
+    }
+
+    static func countsDetection(_ detection: Detection, source: String) -> Bool {
+        if source == "camera" { return allowsManualCapture(detection.confidence) }
+        return detection.confidence >= galleryMinimum
+    }
+}
+
 struct InspectionRecord: Codable, Identifiable, Hashable {
     var id: UUID
     var capturedAt: Date
@@ -55,7 +70,9 @@ struct InspectionRecord: Codable, Identifiable, Hashable {
     var source: String
     var demo: Bool
 
-    var confirmedDetections: [Detection] { detections.filter { $0.confidence >= 0.95 } }
+    var confirmedDetections: [Detection] {
+        detections.filter { InspectionConfidence.countsDetection($0, source: source) }
+    }
     var confirmedCount: Int { confirmedDetections.count }
 }
 

@@ -14,9 +14,16 @@ struct CameraScreen: View {
     @State private var alertMessage: String?
     @State private var autoCaptureArmed = true
 
-    private var percent: Int { Int((engine.confidence * 100).rounded()) }
+    private var canCaptureManually: Bool { InspectionConfidence.allowsManualCapture(engine.confidence) }
+    private var canCaptureAutomatically: Bool {
+        engine.modelReady && !working && !help && alertMessage == nil && autoCaptureArmed
+            && engine.confidence >= InspectionConfidence.automaticMinimum
+    }
+    private var percent: String { engine.confidence.formatted(.percent.precision(.fractionLength(1))) }
     private var guidance: String {
-        engine.confidence >= 0.95 ? "Boa distância — mantenha firme" : engine.confidence > 0 ? "Aproxime-se da praga e mantenha firme" : "Aponte e aproxime-se da praga"
+        if engine.confidence >= InspectionConfidence.automaticMinimum { return "Captura automática · mantenha firme" }
+        if canCaptureManually { return "Captura manual liberada" }
+        return "Aproxime-se até passar de 85%"
     }
 
     var body: some View {
@@ -32,10 +39,9 @@ struct CameraScreen: View {
         .onChange(of: torch) { _, enabled in engine.setTorch(enabled) }
         .onChange(of: engine.confidence) { _, confidence in
             if confidence < 0.80 { autoCaptureArmed = true }
-            if confidence >= 0.95, autoCaptureArmed, !working {
-                autoCaptureArmed = false
-                Task { await capture() }
-            }
+        }
+        .onChange(of: canCaptureAutomatically, initial: true) { _, allowed in
+            if allowed { Task { await capture(automatically: true) } }
         }
         .onChange(of: pickerItem) { _, item in if let item { Task { await importPhoto(item) } } }
         .sheet(isPresented: $help) { CameraHelpView() }
@@ -50,7 +56,7 @@ struct CameraScreen: View {
                 VStack(alignment: .trailing, spacing: 8) {
                     HStack(spacing: 8) {
                         VStack(alignment: .leading, spacing: 5) {
-                            HStack { Text(engine.confidence > 0 ? "Ácaro" : "Buscando"); Spacer(); Text("\(percent)%") }.font(.caption.bold())
+                            HStack { Text(engine.confidence > 0 ? "Ácaro" : "Buscando"); Spacer(); Text(percent) }.font(.caption.bold())
                             GeometryReader { geometry in Capsule().fill(.white.opacity(0.25)).overlay(alignment: .leading) { Capsule().fill(CYFColor.orange).frame(width: geometry.size.width * max(0.03, engine.confidence)) } }.frame(height: 5)
                         }.foregroundStyle(.white).padding(.horizontal, 12).padding(.vertical, 9).frame(width: 132).background(.black.opacity(0.45)).clipShape(RoundedRectangle(cornerRadius: 15))
                         Button { help = true } label: { roundIcon("info.circle") }
@@ -58,7 +64,7 @@ struct CameraScreen: View {
                 }
             }.padding(.horizontal, 18).padding(.top, 10)
             Text(guidance).font(.caption.bold()).foregroundStyle(.white).padding(.horizontal, 14).padding(.vertical, 8)
-                .background(engine.confidence >= 0.95 ? CYFColor.green.opacity(0.9) : Color.black.opacity(0.55)).clipShape(Capsule()).padding(.top, 12)
+                .background(canCaptureManually ? CYFColor.green.opacity(0.9) : Color.black.opacity(0.55)).clipShape(Capsule()).padding(.top, 12)
             Spacer()
             focusFrame
             Spacer()
@@ -71,7 +77,11 @@ struct CameraScreen: View {
                 Spacer()
                 Button { Task { await capture() } } label: {
                     ZStack { Circle().stroke(.white, lineWidth: 4).frame(width: 78, height: 78); Circle().fill(.white).frame(width: 64, height: 64); if working { ProgressView().tint(CYFColor.green) } }
-                }.disabled(working || !engine.modelReady)
+                }
+                .disabled(working || !engine.modelReady || !canCaptureManually)
+                .opacity(!working && !canCaptureManually ? 0.45 : 1)
+                .accessibilityLabel("Tirar foto")
+                .accessibilityHint("Disponível acima de 85% de confiança")
                 Spacer()
                 Button { torch.toggle() } label: { sideControl(icon: torch ? "bolt.fill" : "bolt.slash", text: "Flash", active: torch) }
             }.padding(.horizontal, 28).padding(.bottom, 25).padding(.top, 15)
@@ -90,20 +100,34 @@ struct CameraScreen: View {
         Color.black.opacity(0.78).ignoresSafeArea().overlay { VStack(spacing: 14) { Image(systemName: "checkmark.circle.fill").font(.system(size: 76)).foregroundStyle(CYFColor.green); Text("Imagem capturada").font(.title2.bold()).foregroundStyle(.white); Text("Registro salvo neste aparelho").foregroundStyle(.white.opacity(0.8)) } }
     }
 
-    private func capture() async {
-        working = true; defer { working = false }
-        if engine.confidence > 0 && engine.confidence < 0.95 { autoCaptureArmed = true; alertMessage = "Confiança baixa. Aproxime-se da praga e mantenha o iPhone firme."; return }
-        guard let image = await engine.capture(), let coordinate = await location.current() else { alertMessage = "Ative a localização precisa para salvar a inspeção no ponto correto do mapa."; return }
-        await persistCapture(image: image, detections: engine.detections, coordinate: coordinate, source: "camera")
+    @MainActor
+    private func capture(automatically: Bool = false) async {
+        guard engine.modelReady, !working, !help, alertMessage == nil, canCaptureManually else { return }
+        if automatically && !canCaptureAutomatically { return }
+        working = true
+        autoCaptureArmed = false
+        defer { working = false }
+
+        let detections = engine.detections
+        guard let image = await engine.capture() else {
+            alertMessage = "Não foi possível capturar a imagem. Tente novamente."
+            return
+        }
+        guard let coordinate = await location.current() else {
+            alertMessage = "Ative a localização precisa para salvar a inspeção no ponto correto do mapa."
+            return
+        }
+        await persistCapture(image: image, detections: detections, coordinate: coordinate, source: "camera")
     }
 
     private func importPhoto(_ item: PhotosPickerItem) async {
+        guard !working else { pickerItem = nil; return }
         working = true; defer { working = false; pickerItem = nil }
         do {
             guard let data = try await item.loadTransferable(type: Data.self), let image = UIImage(data: data) else { throw CameraError.invalidImage }
             let detections = try await GalleryAnalyzer.shared.analyze(image)
             let confidence = detections.first?.confidence ?? 0
-            if confidence > 0 && confidence < 0.95 { alertMessage = "A detecção ficou abaixo de 95%. Escolha uma foto mais próxima da praga."; return }
+            if confidence > 0 && confidence < InspectionConfidence.galleryMinimum { alertMessage = "A detecção ficou abaixo de 95%. Escolha uma foto mais próxima da praga."; return }
             let coordinate: FieldCoordinate?
             if let exifCoordinate = ImageMetadata.exifCoordinate(from: data) {
                 coordinate = exifCoordinate
@@ -120,7 +144,7 @@ struct CameraScreen: View {
         let id = UUID()
         do {
             let name = try store.saveImage(data, id: id)
-            let confirmed = detections.filter { $0.confidence >= 0.95 }
+            let confirmed = detections.filter { InspectionConfidence.countsDetection($0, source: source) }
             let plot = GeoService.findPlot(in: store.plots, coordinate: coordinate)
             let record = InspectionRecord(id: id, capturedAt: Date(), imageName: name, width: image.size.width, height: image.size.height,
                 detections: confirmed, topConfidence: detections.first?.confidence ?? 0, location: coordinate, plotID: plot?.id, mapVisible: false, source: source, demo: false)
@@ -137,7 +161,7 @@ private struct CameraHelpView: View {
         NavigationStack {
             VStack(spacing: 16) {
                 HelpRow(icon: "viewfinder", title: "Aproxime a laranja", copy: "Centralize a casca dentro das marcas brancas.")
-                HelpRow(icon: "gauge.with.dots.needle.67percent", title: "Aguarde o sinal", copy: "A barra mede a confiança. Com 95% ou mais, a detecção é confirmada.")
+                HelpRow(icon: "gauge.with.dots.needle.67percent", title: "Aguarde o sinal", copy: "Acima de 85%, você pode tirar a foto. A partir de 90%, a câmera dispara automaticamente.")
                 HelpRow(icon: "map", title: "Confirme o talhão", copy: "Depois da foto, informe a área, desenhe ou use um limite existente.")
                 HelpRow(icon: "line.3.horizontal.decrease.circle", title: "Use os filtros", copy: "No mapa e histórico, pesquise o nome e filtre por situação sem poluir a tela.")
                 Label("A análise usa UltralyticsYOLO + Core ML e funciona offline no iPhone.", systemImage: "iphone.and.arrow.forward")
